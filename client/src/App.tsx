@@ -1,11 +1,5 @@
-import Login from './pages/login.js';
+import { AuthPage } from './pages/AuthPage';
 
-function App() {
-  return (
-    <div>
-      <Login />
-    </div>
-  );
+export default function App() {
+  return <AuthPage />;
 }
-
-export default App;

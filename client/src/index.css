@@ -1,1 +1,37 @@
 @import 'tailwindcss';
+
+@theme {
+  /* neutrals */
+  --color-ink-50: #f5f4f8;
+  --color-ink-100: #e7e5ee;
+  --color-ink-200: #c9c6d4;
+  --color-ink-300: #9a97a8;
+  --color-ink-400: #736f80;
+  --color-ink-500: #5c5966;
+  --color-ink-600: #27252f;
+  --color-ink-700: #1b1a24;
+  --color-ink-800: #15141d;
+  --color-ink-900: #0c0b11;
+  --color-ink-950: #08080c;
+
+  /* brand */
+  --color-brand-200: #e8d9ff;
+  --color-brand-400: #c084fc;
+  --color-brand-500: #a855f7;
+  --color-brand-600: #7c3aed;
+
+  /* rarity tiers */
+  --color-rarity-legendary: #f4bd3d;
+  --color-rarity-epic: #a855f7;
+  --color-rarity-rare: #ec4899;
+  --color-rarity-uncommon: #4d9dff;
+
+  /* custom shadow token -> shadow-brand */
+  --shadow-brand: 0 14px 30px -12px rgba(168, 85, 247, 0.65);
+}
+
+@layer base {
+  body {
+    @apply bg-ink-950 text-ink-50 antialiased;
+  }
+}
