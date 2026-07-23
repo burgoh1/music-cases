@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
+import bcrypt from 'bcrypt';
 
 export const authRouter = Router();
 
@@ -11,25 +12,36 @@ authRouter.post('/signup', async (req, res) => {
   }
 
   try {
-    // TODO(you): check whether a user with this email already exists.
-    // Query the `users` table for a matching email. If one exists,
-    // respond 409 and return early (don't leak whether it's the email
-    // specifically that's taken vs. some other error).
+    const emailCheck = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+    if (emailCheck.rows.length > 0) {
+      res.status(409).json({ error: 'The email you put is already registered' });
+      return;
+    }
 
-    // TODO(you): hash the plaintext `password` with bcrypt before it ever
-    // touches the database. Look at bcrypt's `hash(data, saltRounds)`.
-    // We haven't picked a saltRounds value yet -- pick one and be ready
-    // to explain the tradeoff in the checkpoint.
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // TODO(you): insert the new user (email, password_hash) into `users`
-    // via `pool.query(...)`. Use a parameterized query ($1, $2) -- never
-    // string-interpolate user input into SQL.
+    const newUser = await pool.query(
+      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
+      [email, hashedPassword]
+    );
 
-    // TODO(you): respond 201 with the created user's id and email only.
-    // Never send password or password_hash back to the client.
-
-    res.status(501).json({ error: 'not implemented yet' });
+    res
+      .status(201)
+      .json({ message: 'User registered successfully', user: newUser.rows[0] });
   } catch (err) {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      err.code === '23505'
+    ) {
+      res.status(409).json({ error: 'The email you put is already registered' });
+      return;
+    }
     console.error('Signup error:', err);
     res.status(500).json({ error: 'internal server error' });
   }
