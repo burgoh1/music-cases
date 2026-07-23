@@ -65,36 +65,26 @@ authRouter.post('/login', async (req, res) => {
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = result.rows[0];
 
-    // TODO(you): if no user was found, respond 401 with a generic message
-    // like "invalid email or password" -- NOT "email not found". Think back
-    // to the signup lesson: we were fine revealing "email already
-    // registered" there. Why is revealing the equivalent ("no account with
-    // that email") a bad idea here, specifically on the LOGIN endpoint?
-    // (hint: what could an attacker automate, one email at a time, if this
-    // response looked different depending on whether the email existed?)
+    if (!user) {
+      res.status(401).json({ error: 'invalid email or password' });
+      return;
+    }
 
-    // TODO(you): use bcrypt.compare(password, user.password_hash) to check
-    // the submitted password against the stored hash. If it doesn't match,
-    // respond with the exact same 401 message you used above -- an attacker
-    // should not be able to tell "wrong email" apart from "right email,
-    // wrong password" by reading your response.
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      res.status(401).json({ error: 'invalid email or password' });
+      return;
+    }
 
-    // TODO(you): sign an access token with jwt.sign(payload, secret, options).
-    //   payload: at least { userId: user.id }
-    //   secret: JWT_ACCESS_SECRET
-    //   options: { expiresIn: ACCESS_TOKEN_EXPIRY }
-    // Docs: https://github.com/auth0/node-jsonwebtoken#jwtsignpayload-secretorprivatekey-options-callback
+    const accessToken = jwt.sign({ userId: user.id }, JWT_ACCESS_SECRET, {
+      expiresIn: ACCESS_TOKEN_EXPIRY,
+    });
 
-    // TODO(you): sign a refresh token the same way, but with
-    // JWT_REFRESH_SECRET and REFRESH_TOKEN_EXPIRY instead.
+    const refreshToken = jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, {
+      expiresIn: REFRESH_TOKEN_EXPIRY,
+    });
 
-    // TODO(you): respond 200 with both tokens in the JSON body, e.g.
-    // { accessToken, refreshToken }.
-    // NOTE: putting the refresh token in the response body is a TEMPORARY
-    // stand-in so you can see the full login flow work end-to-end. It does
-    // not belong here long-term -- next lesson replaces this with a proper
-    // httpOnly cookie. Don't build any client code that depends on reading
-    // refreshToken from this response; it's going away.
+    res.status(200).json({ accessToken, refreshToken });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'internal server error' });
