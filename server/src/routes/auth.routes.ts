@@ -7,7 +7,9 @@ import {
   JWT_REFRESH_SECRET,
   ACCESS_TOKEN_EXPIRY,
   REFRESH_TOKEN_EXPIRY,
+  REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
 } from '../config.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 export const authRouter = Router();
 
@@ -84,9 +86,24 @@ authRouter.post('/login', async (req, res) => {
       expiresIn: REFRESH_TOKEN_EXPIRY,
     });
 
-    res.status(200).json({ accessToken, refreshToken });
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
+    });
+    res.status(200).json({ accessToken });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'internal server error' });
   }
+});
+
+authRouter.get('/me', requireAuth, async (req, res) => {
+  // TODO(you): requireAuth only calls next() if the access token was valid,
+  // so by the time this handler runs, req.userId is guaranteed to be set.
+  // Query the `users` table for that id and respond 200 with { id, email }.
+  // Same rule as always: never include password_hash in the response.
+  // If somehow no user matches (e.g. the account was deleted after the
+  // token was issued), respond 404.
 });
