@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 import {
   JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET,
   ACCESS_TOKEN_EXPIRY,
   REFRESH_TOKEN_EXPIRY,
+  REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
 } from '../config.js';
 
 export const authRouter = Router();
@@ -110,10 +112,31 @@ authRouter.post('/login', async (req, res) => {
       expiresIn: REFRESH_TOKEN_EXPIRY,
     });
 
-    // if everything works,
-    res.status(200).json({ msg: 'yippie!' });
+    // set refresh token in HTTP header
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
+    });
+    // if everything works, respond with access token
+    res.status(200).json({ accessToken });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'internal server error' });
   }
+});
+
+authRouter.get('/me', requireAuth, async (req, res) => {
+  // check if user exists in the database
+  const idCheck = await pool.query(
+    'SELECT id, email FROM users WHERE id = $1',
+    [req.userId]
+  );
+  const user = idCheck.rows[0];
+  if (!user) {
+    res.status(404).json({ error: 'user not found' });
+    return;
+  }
+  res.status(200).json({ user });
 });
