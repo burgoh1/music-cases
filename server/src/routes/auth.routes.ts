@@ -100,10 +100,14 @@ authRouter.post('/login', async (req, res) => {
 });
 
 authRouter.get('/me', requireAuth, async (req, res) => {
-  // TODO(you): requireAuth only calls next() if the access token was valid,
-  // so by the time this handler runs, req.userId is guaranteed to be set.
-  // Query the `users` table for that id and respond 200 with { id, email }.
-  // Same rule as always: never include password_hash in the response.
-  // If somehow no user matches (e.g. the account was deleted after the
-  // token was issued), respond 404.
+  const idCheck = await pool.query(
+    'SELECT id, email FROM users WHERE id = $1',
+    [req.userId]
+  );
+  const user = idCheck.rows[0];
+  if (!user) {
+    res.status(404).json({ error: 'user not found' });
+    return;
+  }
+  res.status(200).json({ user });
 });
