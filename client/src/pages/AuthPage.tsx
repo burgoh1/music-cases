@@ -1,18 +1,35 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Logo } from '../components/Logo';
 import { AuthTabs, type AuthMode } from '../components/AuthTabs';
 import { LoginForm, type LoginPayload } from '../components/LoginForm';
 import { SignupForm, type SignupPayload } from '../components/SignupForm';
+import { useAuth } from '../context/AuthContext';
 
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
+  const [error, setError] = useState<string | null>(null);
+  const { login, signup } = useAuth();
+  const navigate = useNavigate();
 
-  function handleLogin(payload: LoginPayload) {
-    console.log('login', payload);
+  async function handleLogin(payload: LoginPayload) {
+    setError(null);
+    try {
+      await login(payload.email, payload.password);
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    }
   }
 
-  function handleSignup(payload: SignupPayload) {
-    console.log('signup', payload);
+  async function handleSignup(payload: SignupPayload) {
+    setError(null);
+    try {
+      await signup(payload.email, payload.password);
+      setMode('login');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    }
   }
 
   return (
@@ -34,6 +51,11 @@ export function AuthPage() {
         <div className="w-full max-w-xl">
           <Logo />
           <AuthTabs mode={mode} onChange={setMode} />
+          {error && (
+            <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[0.95rem] text-red-300">
+              {error}
+            </div>
+          )}
           {mode === 'login' ? (
             <LoginForm onSubmit={handleLogin} />
           ) : (
