@@ -142,20 +142,38 @@ authRouter.get('/me', requireAuth, async (req, res) => {
 });
 
 authRouter.post('/refresh', async (req, res) => {
-  // TODO(you): read the refresh token off req.cookies.refreshToken (this
-  // only works because of the cookie-parser middleware wired into
-  // index.ts -- it's what turns the raw Cookie header into req.cookies).
-  // If it's missing, respond 401.
+  const refreshToken = req.cookies.refreshToken;
+  if (!refreshToken) {
+    res.status(401).json({ error: 'missing refreshToken' });
+    return;
+  }
 
-  // TODO(you): jwt.verify(token, JWT_REFRESH_SECRET) in a try/catch --
-  // same pattern as requireAuth, just the refresh secret instead of the
-  // access secret. On failure (expired/invalid/tampered), respond 401.
-  // On success, same string|JwtPayload narrowing you already handled in
-  // auth.middleware.ts applies here too.
-
-  // TODO(you): sign a brand new access token (same shape as login's,
-  // { userId: decoded.userId }, JWT_ACCESS_SECRET, ACCESS_TOKEN_EXPIRY)
-  // and respond 200 with { accessToken }.
-  // Note: do NOT touch the refreshToken cookie here -- leave it exactly
-  // as it is. Rotating it is Lesson 8, not this one.
+  try {
+    const decoded = jwt.verify(refreshToken ?? '', JWT_REFRESH_SECRET);
+    if (typeof decoded === 'string') {
+      res.status(401).json({ error: 'invalid token' });
+      return;
+    }
+    // sign an access token
+    const accessToken = jwt.sign(
+      { userId: decoded.userId },
+      JWT_ACCESS_SECRET,
+      {
+        expiresIn: ACCESS_TOKEN_EXPIRY,
+      }
+    );
+    res.status(200).json({ accessToken });
+  } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      res.status(401).json({ error: err.message });
+      return;
+    } else if (err instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({ error: err.message });
+      return;
+    } else {
+      const error = err instanceof Error ? err.message : String(err);
+      res.status(401).json({ error: error });
+      return;
+    }
+  }
 });

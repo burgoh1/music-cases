@@ -1,22 +1,5 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
-
-interface AuthContextValue {
-  accessToken: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
-  refresh: () => Promise<string>;
-  authFetch: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-export function useAuth(): AuthContextValue {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-}
+import { useState, type ReactNode } from 'react';
+import { AuthContext } from './AuthContext.js';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -78,18 +61,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     input: RequestInfo,
     init: RequestInit = {}
   ): Promise<Response> {
-    // TODO(you): make the request with the CURRENT accessToken attached as
-    // an "Authorization: Bearer <token>" header -- merge it into any
-    // headers already present on `init`, don't just overwrite them.
-    //
-    // If the response comes back 401 (access token expired/invalid), call
-    // refresh() to get a new access token, then retry the SAME request
-    // once more with the new token attached, and return THAT response.
-    // If refresh() itself throws (refresh token also expired/invalid --
-    // the user needs to log in again for real), let that error propagate
-    // up to the caller; don't catch it here.
-    //
-    // If the first response was not 401, just return it as-is.
+    const requestWithToken = (token: string | null) => {
+      const headers = new Headers(init.headers);
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      return fetch(input, { ...init, headers });
+    };
+
+    const response = await requestWithToken(accessToken);
+    if (response.status !== 401) {
+      return response;
+    }
+
+    return requestWithToken(await refresh());
   }
 
   return (
