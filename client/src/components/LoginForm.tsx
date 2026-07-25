@@ -1,49 +1,26 @@
 import { ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { useActionState, useState } from 'react';
 
-export interface LoginResult {
-  accessToken: string;
+export interface LoginPayload {
+  email: string;
+  password: string;
 }
 
 interface LoginFormProps {
-  onSuccess: (result: LoginResult) => void;
+  onSubmit: (payload: LoginPayload) => void;
 }
 
-interface LoginState {
-  error: string | null;
-}
-
-const initialState: LoginState = { error: null };
-
-export function LoginForm({ onSuccess }: LoginFormProps) {
+export function LoginForm({ onSubmit }: LoginFormProps) {
   const [passwordVisible, setPasswordVisible] = useState(false);
 
-  const [state, formAction, isPending] = useActionState(
-    async (_prevState: LoginState, formData: FormData): Promise<LoginState> => {
+  const [, formAction, isPending] = useActionState(
+    async (_prevState: null, formData: FormData) => {
       const email = formData.get('email') as string;
       const password = formData.get('password') as string;
-
-      let res: Response;
-      try {
-        res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-      } catch {
-        return { error: 'Could not reach the server. Please try again.' };
-      }
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        return { error: data?.error ?? 'Something went wrong' };
-      }
-
-      onSuccess(data);
-      return { error: null };
+      onSubmit({ email, password });
+      return null;
     },
-    initialState
+    null
   );
 
   return (
@@ -54,12 +31,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       <p className="mb-7 text-[1.2rem] text-ink-300">
         Open your cases. Pull your cards. Build your collection.
       </p>
-
-      {state.error && (
-        <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[.95rem] text-red-300">
-          {state.error}
-        </div>
-      )}
 
       <div className="mb-5">
         <label
@@ -127,7 +98,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         disabled={isPending}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-4 text-[1rem] font-extrabold text-white transition-transform hover:-translate-y-px active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? 'OPENING...' : 'OPEN YOUR COLLECTION'}
+        OPEN YOUR COLLECTION
         <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
       </button>
     </form>

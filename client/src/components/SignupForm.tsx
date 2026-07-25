@@ -1,54 +1,28 @@
 import { ChevronRight, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useActionState, useState } from 'react';
 
-export interface SignupResult {
-  message: string;
-  user: { id: number; email: string };
+export interface SignupPayload {
+  username: string;
+  email: string;
+  password: string;
 }
 
 interface SignupFormProps {
-  onSuccess: (result: SignupResult) => void;
+  onSubmit: (payload: SignupPayload) => void;
 }
 
-interface SignupState {
-  error: string | null;
-}
-
-const initialState: SignupState = { error: null };
-
-export function SignupForm({ onSuccess }: SignupFormProps) {
+export function SignupForm({ onSubmit }: SignupFormProps) {
   const [passwordVisible, setPasswordVisible] = useState(false);
 
-  const [state, formAction, isPending] = useActionState(
-    async (
-      _prevState: SignupState,
-      formData: FormData
-    ): Promise<SignupState> => {
+  const [, formAction, isPending] = useActionState(
+    async (_prevState: null, formData: FormData) => {
       const username = formData.get('username') as string;
       const email = formData.get('email') as string;
       const password = formData.get('password') as string;
-
-      let res: Response;
-      try {
-        res = await fetch('/api/auth/signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, email, password }),
-        });
-      } catch {
-        return { error: 'Could not reach the server. Please try again.' };
-      }
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        return { error: data?.error ?? 'Something went wrong' };
-      }
-
-      onSuccess(data);
-      return { error: null };
+      onSubmit({ username, email, password });
+      return null;
     },
-    initialState
+    null
   );
 
   return (
@@ -59,12 +33,6 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
       <p className="mb-7 text-[1.2rem] leading-snug text-ink-300">
         Create an account and open your first case free.
       </p>
-
-      {state.error && (
-        <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[.95rem] text-red-300">
-          {state.error}
-        </div>
-      )}
 
       <div className="mb-5">
         <label
@@ -141,7 +109,7 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
         disabled={isPending}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-4 text-[1rem] font-extrabold text-white transition-transform hover:-translate-y-px active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? 'CREATING...' : 'CREATE ACCOUNT'}
+        CREATE ACCOUNT
         <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
       </button>
 

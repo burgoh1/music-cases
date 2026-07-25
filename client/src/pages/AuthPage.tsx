@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { AuthTabs, type AuthMode } from '../components/AuthTabs';
-import { LoginForm, type LoginResult } from '../components/LoginForm';
-import { SignupForm, type SignupResult } from '../components/SignupForm';
+import { LoginForm, type LoginPayload } from '../components/LoginForm';
+import { SignupForm, type SignupPayload } from '../components/SignupForm';
 
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
 
-  function handleLoginSuccess(result: LoginResult) {
-    console.log('login success', result);
+  function handleLogin(payload: LoginPayload) {
+    console.log('login', payload);
   }
 
-  function handleSignupSuccess(result: SignupResult) {
-    console.log('signup success', result);
+  function handleSignup(payload: SignupPayload) {
+    console.log('signup', payload);
   }
 
   return (
@@ -33,9 +33,9 @@ export function AuthPage() {
         <div className="w-full max-w-xl">
           <AuthTabs mode={mode} onChange={setMode} />
           {mode === 'login' ? (
-            <LoginForm onSuccess={handleLoginSuccess} />
+            <LoginForm onSubmit={handleLogin} />
           ) : (
-            <SignupForm onSuccess={handleSignupSuccess} />
+            <SignupForm onSubmit={handleSignup} />
           )}
         </div>
       </div>
