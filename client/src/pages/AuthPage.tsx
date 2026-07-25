@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { AuthTabs, type AuthMode } from '../components/AuthTabs';
 import { LoginForm, type LoginPayload } from '../components/LoginForm';
 import { SignupForm, type SignupPayload } from '../components/SignupForm';
