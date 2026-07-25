@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 import { pool } from '../db.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -107,10 +108,20 @@ authRouter.post('/login', async (req, res) => {
       expiresIn: ACCESS_TOKEN_EXPIRY,
     });
 
-    // sign a refresh token
-    const refreshToken = jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, {
-      expiresIn: REFRESH_TOKEN_EXPIRY,
-    });
+    // sign a refresh token, tracked in refresh_tokens via a unique jti so
+    // it can be individually revoked/rotated later
+    const jti = randomUUID();
+    await pool.query(
+      'INSERT INTO refresh_tokens (jti, user_id) VALUES ($1, $2)',
+      [jti, user.id]
+    );
+    const refreshToken = jwt.sign(
+      { userId: user.id, jti },
+      JWT_REFRESH_SECRET,
+      {
+        expiresIn: REFRESH_TOKEN_EXPIRY,
+      }
+    );
 
     // set refresh token in HTTP header
     res.cookie('refreshToken', refreshToken, {
@@ -154,6 +165,32 @@ authRouter.post('/refresh', async (req, res) => {
       res.status(401).json({ error: 'invalid token' });
       return;
     }
+
+    // TODO(you): look up decoded.jti in refresh_tokens
+    // (SELECT * FROM refresh_tokens WHERE jti = $1).
+    //
+    // Two "something's wrong" cases to handle BEFORE issuing anything:
+    //   1. No row matches at all -- this jti was never issued (or the
+    //      table was wiped). Respond 401.
+    //   2. A row matches but its `revoked` column is already true -- this
+    //      exact refresh token was already used once before. This is
+    //      REUSE, the scenario this lesson exists for. Don't just reject
+    //      it: revoke every row for this user
+    //      (UPDATE refresh_tokens SET revoked = true WHERE user_id = $1),
+    //      call res.clearCookie('refreshToken') so this browser's stale
+    //      cookie is gone too, and respond 401. The user now has to log
+    //      in again for real, on every device.
+    //
+    // If neither of those apply (a real, first-use row), do the rotation:
+    //   1. Mark THIS row revoked = true (single-use -- it cannot be
+    //      presented again after this point).
+    //   2. Generate a new jti (randomUUID(), already imported above) and
+    //      INSERT a new refresh_tokens row for the same user_id.
+    //   3. jwt.sign a NEW refresh token with { userId, jti: <the new one> },
+    //      JWT_REFRESH_SECRET, REFRESH_TOKEN_EXPIRY -- and res.cookie(...)
+    //      it, replacing the old one (same options as /login's cookie).
+    //   4. jwt.sign a new access token same as before, respond 200 with it.
+
     // sign an access token
     const accessToken = jwt.sign(
       { userId: decoded.userId },
