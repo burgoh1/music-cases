@@ -140,3 +140,22 @@ authRouter.get('/me', requireAuth, async (req, res) => {
   }
   res.status(200).json({ user });
 });
+
+authRouter.post('/refresh', async (req, res) => {
+  // TODO(you): read the refresh token off req.cookies.refreshToken (this
+  // only works because of the cookie-parser middleware wired into
+  // index.ts -- it's what turns the raw Cookie header into req.cookies).
+  // If it's missing, respond 401.
+
+  // TODO(you): jwt.verify(token, JWT_REFRESH_SECRET) in a try/catch --
+  // same pattern as requireAuth, just the refresh secret instead of the
+  // access secret. On failure (expired/invalid/tampered), respond 401.
+  // On success, same string|JwtPayload narrowing you already handled in
+  // auth.middleware.ts applies here too.
+
+  // TODO(you): sign a brand new access token (same shape as login's,
+  // { userId: decoded.userId }, JWT_ACCESS_SECRET, ACCESS_TOKEN_EXPIRY)
+  // and respond 200 with { accessToken }.
+  // Note: do NOT touch the refreshToken cookie here -- leave it exactly
+  // as it is. Rotating it is Lesson 8, not this one.
+});
