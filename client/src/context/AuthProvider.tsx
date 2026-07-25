@@ -77,17 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return requestWithToken(await refresh());
   }
 
-  async function logout(): Promise<void> {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } finally {
-      setAccessToken(null);
-    }
-  }
-
   async function logoutAll(): Promise<void> {
     try {
       await authFetch('/api/auth/logout-all', {
@@ -107,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         refresh,
         authFetch,
-        logout,
         logoutAll,
       }}
     >

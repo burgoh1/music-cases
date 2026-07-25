@@ -6,7 +6,6 @@ export interface AuthContextValue {
   signup: (email: string, password: string) => Promise<void>;
   refresh: () => Promise<string>;
   authFetch: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
-  logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
 }
 

@@ -215,21 +215,6 @@ authRouter.post('/refresh', async (req, res) => {
   }
 });
 
-authRouter.post('/logout', async (req, res) => {
-  // TODO(you): read refreshToken from req.cookies. If it's present, try
-  // jwt.verify(token, JWT_REFRESH_SECRET) (same string|JwtPayload
-  // narrowing pattern as elsewhere) and revoke just that one row:
-  // UPDATE refresh_tokens SET revoked = true WHERE jti = $1.
-  //
-  // Wrap the verify in a try/catch -- if it's missing, expired, or
-  // invalid, there's nothing valid to revoke server-side, and that's
-  // fine, not an error. Skip straight to the next step either way.
-  //
-  // Always: res.clearCookie('refreshToken') (same name used when it was
-  // set), then respond 200. Logout should succeed from the client's
-  // point of view even when there was nothing to revoke.
-});
-
 authRouter.post('/logout-all', requireAuth, async (req, res) => {
   // TODO(you): requireAuth already guarantees req.userId is set (this
   // route needs a valid access token to call, unlike /logout above).
