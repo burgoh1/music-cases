@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Logo } from '../components/Logo';
 import { AuthTabs, type AuthMode } from '../components/AuthTabs';
 import { LoginForm, type LoginPayload } from '../components/LoginForm';
 import { SignupForm, type SignupPayload } from '../components/SignupForm';
@@ -32,7 +31,6 @@ export function AuthPage() {
       {/* RIGHT: auth panel */}
       <div className="flex items-center justify-center bg-ink-900 px-10 py-12 lg:px-16">
         <div className="w-full max-w-xl">
-          <Logo />
           <AuthTabs mode={mode} onChange={setMode} />
           {mode === 'login' ? (
             <LoginForm onSubmit={handleLogin} />
