@@ -1,18 +1,17 @@
 import { useState } from 'react';
-import { Logo } from '../components/Logo';
 import { AuthTabs, type AuthMode } from '../components/AuthTabs';
-import { LoginForm, type LoginPayload } from '../components/LoginForm';
-import { SignupForm, type SignupPayload } from '../components/SignupForm';
+import { LoginForm, type LoginResult } from '../components/LoginForm';
+import { SignupForm, type SignupResult } from '../components/SignupForm';
 
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
 
-  function handleLogin(payload: LoginPayload) {
-    console.log('login', payload);
+  function handleLoginSuccess(result: LoginResult) {
+    console.log('login success', result);
   }
 
-  function handleSignup(payload: SignupPayload) {
-    console.log('signup', payload);
+  function handleSignupSuccess(result: SignupResult) {
+    console.log('signup success', result);
   }
 
   return (
@@ -32,12 +31,11 @@ export function AuthPage() {
       {/* RIGHT: auth panel */}
       <div className="flex items-center justify-center bg-ink-900 px-10 py-12 lg:px-16">
         <div className="w-full max-w-xl">
-          <Logo />
           <AuthTabs mode={mode} onChange={setMode} />
           {mode === 'login' ? (
-            <LoginForm onSubmit={handleLogin} />
+            <LoginForm onSuccess={handleLoginSuccess} />
           ) : (
-            <SignupForm onSubmit={handleSignup} />
+            <SignupForm onSuccess={handleSignupSuccess} />
           )}
         </div>
       </div>

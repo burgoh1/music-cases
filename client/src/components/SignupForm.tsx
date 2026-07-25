@@ -1,30 +1,58 @@
-import { ChevronRight, Sparkles } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
-import { TextField } from './TextField';
-import { PasswordField } from './PasswordField';
+import { ChevronRight, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { useActionState, useState } from 'react';
 
-export interface SignupPayload {
-  username: string;
-  email: string;
-  password: string;
+export interface SignupResult {
+  message: string;
+  user: { id: number; email: string };
 }
 
 interface SignupFormProps {
-  onSubmit: (payload: SignupPayload) => void;
+  onSuccess: (result: SignupResult) => void;
 }
 
-export function SignupForm({ onSubmit }: SignupFormProps) {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+interface SignupState {
+  error: string | null;
+}
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    onSubmit({ username, email, password });
-  }
+const initialState: SignupState = { error: null };
+
+export function SignupForm({ onSuccess }: SignupFormProps) {
+  const [passwordVisible, setPasswordVisible] = useState(false);
+
+  const [state, formAction, isPending] = useActionState(
+    async (
+      _prevState: SignupState,
+      formData: FormData
+    ): Promise<SignupState> => {
+      const username = formData.get('username') as string;
+      const email = formData.get('email') as string;
+      const password = formData.get('password') as string;
+
+      let res: Response;
+      try {
+        res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email, password }),
+        });
+      } catch {
+        return { error: 'Could not reach the server. Please try again.' };
+      }
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        return { error: data?.error ?? 'Something went wrong' };
+      }
+
+      onSuccess(data);
+      return { error: null };
+    },
+    initialState
+  );
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form action={formAction}>
       <h1 className="mb-2 text-[2.5rem] font-extrabold tracking-tight text-white">
         Start collecting.
       </h1>
@@ -32,40 +60,88 @@ export function SignupForm({ onSubmit }: SignupFormProps) {
         Create an account and open your first case free.
       </p>
 
-      <TextField
-        id="su-username"
-        label="Username"
-        placeholder="yourhandle"
-        autoComplete="username"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        required
-      />
-      <TextField
-        id="su-email"
-        label="Email"
-        type="email"
-        placeholder="you@example.com"
-        autoComplete="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-      <PasswordField
-        id="su-password"
-        label="Password"
-        placeholder="••••••••"
-        autoComplete="new-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-      />
+      {state.error && (
+        <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[.95rem] text-red-300">
+          {state.error}
+        </div>
+      )}
+
+      <div className="mb-5">
+        <label
+          htmlFor="su-username"
+          className="mb-2 block text-[1rem] font-bold uppercase tracking-wider text-ink-400"
+        >
+          Username
+        </label>
+        <input
+          id="su-username"
+          name="username"
+          placeholder="yourhandle"
+          autoComplete="username"
+          defaultValue=""
+          required
+          className="w-full rounded-[11px] border border-ink-600 bg-ink-800 px-4 py-3.5 text-[1.1rem] text-ink-50 placeholder:text-ink-500 outline-none transition-shadow focus:border-brand-500/60 focus:ring-[3px] focus:ring-brand-500/15"
+        />
+      </div>
+
+      <div className="mb-5">
+        <label
+          htmlFor="su-email"
+          className="mb-2 block text-[1rem] font-bold uppercase tracking-wider text-ink-400"
+        >
+          Email
+        </label>
+        <input
+          id="su-email"
+          name="email"
+          type="email"
+          placeholder="you@example.com"
+          autoComplete="email"
+          defaultValue=""
+          required
+          className="w-full rounded-[11px] border border-ink-600 bg-ink-800 px-4 py-3.5 text-[1.1rem] text-ink-50 placeholder:text-ink-500 outline-none transition-shadow focus:border-brand-500/60 focus:ring-[3px] focus:ring-brand-500/15"
+        />
+      </div>
+
+      <div className="mb-5">
+        <label
+          htmlFor="su-password"
+          className="mb-2 block text-[1rem] font-bold uppercase tracking-wider text-ink-400"
+        >
+          Password
+        </label>
+        <div className="relative">
+          <input
+            id="su-password"
+            name="password"
+            type={passwordVisible ? 'text' : 'password'}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            defaultValue=""
+            required
+            className="w-full rounded-[11px] border border-ink-600 bg-ink-800 px-4 py-3.5 pr-11 text-[1.1rem] text-ink-50 placeholder:text-ink-500 outline-none focus:border-brand-500/60 focus:ring-[3px] focus:ring-brand-500/15"
+          />
+          <button
+            type="button"
+            onClick={() => setPasswordVisible((v) => !v)}
+            aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 transition-colors hover:text-ink-300"
+          >
+            {passwordVisible ? (
+              <EyeOff className="h-5 w-5" />
+            ) : (
+              <Eye className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+      </div>
 
       <button
         type="submit"
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-4 text-[1rem] font-extrabold text-white transition-transform hover:-translate-y-px active:translate-y-0"
+        disabled={isPending}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-4 text-[1rem] font-extrabold text-white transition-transform hover:-translate-y-px active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        CREATE ACCOUNT
+        {isPending ? 'CREATING...' : 'CREATE ACCOUNT'}
         <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
       </button>
 
