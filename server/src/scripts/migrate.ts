@@ -7,7 +7,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.join(__dirname, '..', '..', 'migrations');
 
 async function runMigrations() {
-  const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+  const files = fs
+    .readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
 
   for (const file of files) {
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
@@ -19,7 +22,7 @@ async function runMigrations() {
   await pool.end();
 }
 
-runMigrations().catch(err => {
+runMigrations().catch((err) => {
   console.error('Migration failed:', err);
   process.exit(1);
 });
