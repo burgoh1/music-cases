@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { AuthTabs, type AuthMode } from '../components/AuthTabs';
 import { LoginForm, type LoginPayload } from '../components/LoginForm';
 import { SignupForm, type SignupPayload } from '../components/SignupForm';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth.js';
 
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');

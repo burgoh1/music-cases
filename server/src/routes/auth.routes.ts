@@ -190,3 +190,13 @@ authRouter.post('/refresh', async (req, res) => {
     }
   }
 });
+
+authRouter.post('/logout-all', requireAuth, async (req, res) => {
+  // TODO(you): requireAuth already guarantees req.userId is set (this
+  // route needs a valid access token to call).
+  // Revoke EVERY refresh_tokens row for this user, not just one:
+  // UPDATE refresh_tokens SET revoked = true WHERE user_id = $1.
+  //
+  // Also res.clearCookie('refreshToken') for this browser's own session
+  // (it's now one of the revoked rows too), then respond 200.
+});
