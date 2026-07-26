@@ -4,6 +4,8 @@ interface AuthContextValue {
   accessToken: string | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
+  refresh: () => Promise<string>;
+  authFetch: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -62,8 +64,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function refresh(): Promise<string> {
+    // make a POST request to refresh endpoint to get new access toket
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    const data = await res.json();
+    // throw if error
+    if (!res.ok) {
+      setAccessToken(null);
+      throw new Error(data.error);
+    }
+
+    // set access token to new access token
+    setAccessToken(data.accessToken);
+    return data.accessToken;
+  }
+
+  async function authFetch(
+    input: RequestInfo, // URL string
+    init: RequestInit = {} // options obj (method, headers, body)
+  ): Promise<Response> {
+    const requestWithToken = (token: string | null) => {
+      // create new header and merge any existing headers
+      const headers = new Headers(init.headers);
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      // returns response with headers
+      return fetch(input, { ...init, headers });
+    };
+
+    // first attempt, check if access token is still valid
+    const response = await requestWithToken(accessToken);
+    if (response.status !== 401) {
+      return response;
+    }
+
+    // if access token is expired/invalid, return fetch with new access token
+    return requestWithToken(await refresh());
+  }
+
   return (
-    <AuthContext.Provider value={{ accessToken, login, signup }}>
+    <AuthContext.Provider
+      value={{ accessToken, login, signup, refresh, authFetch }}
+    >
       {children}
     </AuthContext.Provider>
   );

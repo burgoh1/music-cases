@@ -140,3 +140,42 @@ authRouter.get('/me', requireAuth, async (req, res) => {
   }
   res.status(200).json({ user });
 });
+
+authRouter.post('/refresh', async (req, res) => {
+  // check if refresh token is inside client cookies
+  const refreshToken = req.cookies.refreshToken;
+  if (!refreshToken) {
+    res.status(401).json({ error: 'missing refreshToken' });
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken ?? '', JWT_REFRESH_SECRET);
+    // check if verification results in a JwtPayload
+    if (typeof decoded === 'string') {
+      res.status(401).json({ error: 'invalid token' });
+      return;
+    }
+    // sign and return new access token
+    const accessToken = jwt.sign(
+      { userId: decoded.userId },
+      JWT_ACCESS_SECRET,
+      {
+        expiresIn: ACCESS_TOKEN_EXPIRY,
+      }
+    );
+    res.status(200).json({ accessToken });
+  } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      res.status(401).json({ error: err.message });
+      return;
+    } else if (err instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({ error: err.message });
+      return;
+    } else {
+      const error = err instanceof Error ? err.message : String(err);
+      res.status(401).json({ error: error });
+      return;
+    }
+  }
+});
