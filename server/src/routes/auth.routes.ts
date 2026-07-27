@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
 import {
@@ -107,10 +108,22 @@ authRouter.post('/login', async (req, res) => {
       expiresIn: ACCESS_TOKEN_EXPIRY,
     });
 
+    // sign a refresh token, tracked in refresh_tokens via a unique jti so
+    // it can be individually revoked/rotated later
+    const jti = randomUUID();
+    await pool.query(
+      'INSERT INTO refresh_tokens (jti, user_id) VALUES ($1, $2)',
+      [jti, user.id]
+    );
+
     // sign a refresh token
-    const refreshToken = jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, {
-      expiresIn: REFRESH_TOKEN_EXPIRY,
-    });
+    const refreshToken = jwt.sign(
+      { userId: user.id, jti },
+      JWT_REFRESH_SECRET,
+      {
+        expiresIn: REFRESH_TOKEN_EXPIRY,
+      }
+    );
 
     // set refresh token in HTTP header
     res.cookie('refreshToken', refreshToken, {
@@ -178,4 +191,12 @@ authRouter.post('/refresh', async (req, res) => {
       return;
     }
   }
+});
+
+authRouter.post('/logout-all', requireAuth, async (req, res) => {
+  await pool.query(
+    'UPDATE refresh_tokens SET revoked = true WHERE user_id = $1',
+    [req.userId]
+  );
+  res.status(200).clearCookie('refreshToken').json({ message: 'logged out' });
 });
