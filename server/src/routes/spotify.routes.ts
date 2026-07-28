@@ -1,10 +1,16 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.middleware.js';
 import { randomUUID } from 'crypto';
+import { pool } from '../db.js';
+
+// middleware
+import { requireAuth } from '../middleware/auth.middleware.js';
+import { refreshCookie } from '../middleware/spotifyRedirect.middleware.js';
+
 import {
   SPOTIFY_CLIENT_ID,
   SPOTIFY_REDIRECT_URI,
   SPOTIFY_NONCE_MAX_AGE_MS,
+  SPOTIFY_CLIENT_SECRET,
 } from '../config.js';
 
 export const spotifyRouter = Router();
@@ -13,7 +19,7 @@ spotifyRouter.get('/connect', requireAuth, async (req, res) => {
   // generate random string for spotify nonce
   const serverSpotifyNonce = randomUUID();
 
-  // set string to httpOnly cookie in users browser
+  // set serverSpotifyNonce in httpOnly cookie to users browser
   res.cookie('serverSpotifyNonce', serverSpotifyNonce, {
     httpOnly: true,
     secure: true,
@@ -34,6 +40,53 @@ spotifyRouter.get('/connect', requireAuth, async (req, res) => {
     show_dialog: 'true',
   });
 
+  // dev: provide me with link to test if spotify authorize link works and redirects to provided URL
   const spotifyUrl = `https://accounts.spotify.com/authorize?${spotifyParams.toString()}`;
   res.status(200).json({ url: spotifyUrl });
+});
+
+spotifyRouter.get('/callback', refreshCookie, async (req, res) => {
+  const { state, code } = req.query;
+  const cookieNonce = req.cookies.serverSpotifyNonce;
+  // check if the nonce stored inside our cookie is the same nonce that came back from spotify redirect
+  if (state !== cookieNonce) {
+    res.status(401).json({ error: 'invalid nonce' });
+    return;
+  }
+  // if they are the same, clear cookie nonce
+  res.clearCookie('serverSpotifyNonce');
+
+  // call spotify token endpoint and set users spotify auth tokens.
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: code as string,
+    redirect_uri: SPOTIFY_REDIRECT_URI,
+  });
+
+  const basicAuth = Buffer.from(
+    `${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`
+  ).toString('base64');
+
+  const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+    },
+    body: params,
+  });
+
+  // tell compiler that we know what data types we are expecting back from tokenRes.json
+  const tokenData = (await tokenRes.json()) as {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  };
+  const { access_token, refresh_token, expires_in } = tokenData;
+  const setExpireDate = new Date(Date.now() + expires_in * 1000);
+  // update users table with spotify auth tokens and info
+  await pool.query(
+    'UPDATE users SET spotify_access_token = $1, spotify_refresh_token = $2, spotify_token_expires_at = $3 WHERE id = $4',
+    [access_token, refresh_token, setExpireDate, req.userId]
+  );
+  res.status(200).json({ message: 'Spotify connected' });
 });

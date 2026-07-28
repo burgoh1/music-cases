@@ -129,7 +129,7 @@ authRouter.post('/login', async (req, res) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
     });
     // if everything works, respond with access token
