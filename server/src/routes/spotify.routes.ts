@@ -82,7 +82,11 @@ spotifyRouter.get('/callback', refreshCookie, async (req, res) => {
     body: params,
   });
 
-  const tokenData = await tokenRes.json();
+  const tokenData = (await tokenRes.json()) as {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  };
 
   if (!tokenRes.ok) {
     console.error('Spotify token exchange failed:', tokenData);
