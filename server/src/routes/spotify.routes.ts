@@ -1,8 +1,14 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.middleware.js';
 import { randomUUID } from 'crypto';
+import { pool } from '../db.js';
+
+// middleware
+import { requireAuth } from '../middleware/auth.middleware.js';
+import { refreshCookie } from '../middleware/spotifyRedirect.middleware.js';
+
 import {
   SPOTIFY_CLIENT_ID,
+  SPOTIFY_CLIENT_SECRET,
   SPOTIFY_REDIRECT_URI,
   SPOTIFY_NONCE_MAX_AGE_MS,
 } from '../config.js';
@@ -32,8 +38,64 @@ spotifyRouter.get('/connect', requireAuth, async (req, res) => {
     // read access to a user's top artists and tracks
     scope: 'user-top-read',
     state: serverSpotifyNonce,
+    // forces the authorization prompt to appear every time (useful for
+    // testing repeatedly during dev - Spotify skips it silently once
+    // you've approved this app before)
+    show_dialog: 'true',
   });
 
   const spotifyUrl = `https://accounts.spotify.com/authorize?${spotifyParams.toString()}`;
   res.status(200).json({ url: spotifyUrl });
+});
+
+spotifyRouter.get('/callback', refreshCookie, async (req, res) => {
+  const { state, code, error } = req.query;
+
+  if (error) {
+    res.clearCookie('serverSpotifyNonce');
+    res.status(400).json({ error: 'Spotify authorization was denied' });
+    return;
+  }
+
+  const cookieNonce = req.cookies.serverSpotifyNonce;
+  if (!cookieNonce || state !== cookieNonce) {
+    res.status(401).json({ error: 'invalid nonce' });
+    return;
+  }
+  res.clearCookie('serverSpotifyNonce');
+
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: code as string,
+    redirect_uri: SPOTIFY_REDIRECT_URI,
+  });
+
+  const basicAuth = Buffer.from(
+    `${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`
+  ).toString('base64');
+
+  const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+    },
+    body: params,
+  });
+
+  const tokenData = await tokenRes.json();
+
+  if (!tokenRes.ok) {
+    console.error('Spotify token exchange failed:', tokenData);
+    res.status(502).json({ error: 'failed to connect Spotify account' });
+    return;
+  }
+
+  const { access_token, refresh_token, expires_in } = tokenData;
+  const expiresAt = new Date(Date.now() + expires_in * 1000);
+
+  await pool.query(
+    'UPDATE users SET spotify_access_token = $1, spotify_refresh_token = $2, spotify_token_expires_at = $3 WHERE id = $4',
+    [access_token, refresh_token, expiresAt, req.userId]
+  );
+  res.status(200).json({ message: 'Spotify connected' });
 });
