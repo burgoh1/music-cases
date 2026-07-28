@@ -16,3 +16,8 @@ export const ACCESS_TOKEN_EXPIRY = '15m';
 export const REFRESH_TOKEN_EXPIRY = '7d';
 
 export const REFRESH_TOKEN_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Spotify
+export const SPOTIFY_CLIENT_ID = requireEnv('SPOTIFY_CLIENT_ID');
+export const SPOTIFY_CLIENT_SECRET = requireEnv('SPOTIFY_CLIENT_SECRET');
+export const SPOTIFY_REDIRECT_URI = requireEnv('SPOTIFY_REDIRECT_URI');
