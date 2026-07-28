@@ -126,10 +126,13 @@ authRouter.post('/login', async (req, res) => {
     );
 
     // set refresh token in HTTP header
+    // sameSite is 'lax' (not 'strict') so this cookie still arrives on the
+    // Spotify OAuth callback, which is a cross-site-initiated top-level
+    // navigation - 'lax' still blocks it on cross-site fetch/POST.
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
     });
     // if everything works, respond with access token
