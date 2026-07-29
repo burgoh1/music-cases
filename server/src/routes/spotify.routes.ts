@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { pool } from '../db.js';
+import { getValidSpotifyAccessToken } from '../services/spotify.service.js';
 
 // middleware
 import { requireAuth } from '../middleware/auth.middleware.js';
@@ -46,7 +47,15 @@ spotifyRouter.get('/connect', requireAuth, async (req, res) => {
 });
 
 spotifyRouter.get('/callback', refreshCookie, async (req, res) => {
-  const { state, code } = req.query;
+  const { state, code, error } = req.query;
+
+  // if user denies spotify auth, clear nonce from cookies
+  if (error) {
+    res.clearCookie('serverSpotifyNonce');
+    res.status(400).json({ error: 'Spotify authorization was denied' });
+    return;
+  }
+
   const cookieNonce = req.cookies.serverSpotifyNonce;
   // check if the nonce stored inside our cookie is the same nonce that came back from spotify redirect
   if (state !== cookieNonce) {
@@ -81,6 +90,12 @@ spotifyRouter.get('/callback', refreshCookie, async (req, res) => {
     refresh_token: string;
     expires_in: number;
   };
+
+  if (!tokenRes.ok) {
+    res.status(502).json({ error: 'failed to connect Spotify account' });
+    return;
+  }
+
   const { access_token, refresh_token, expires_in } = tokenData;
   const setExpireDate = new Date(Date.now() + expires_in * 1000);
   // update users table with spotify auth tokens and info
@@ -89,4 +104,34 @@ spotifyRouter.get('/callback', refreshCookie, async (req, res) => {
     [access_token, refresh_token, setExpireDate, req.userId]
   );
   res.status(200).json({ message: 'Spotify connected' });
+});
+
+spotifyRouter.get('/top-tracks', requireAuth, async (req, res) => {
+  try {
+    // wait for updated access token
+    const validSpotifyAccessToken = await getValidSpotifyAccessToken(
+      req.userId!
+    );
+
+    const data = await fetch('https://api.spotify.com/v1/me/top/tracks', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${validSpotifyAccessToken}`,
+      },
+    });
+    const spotifyRes = await data.json();
+
+    if (!data.ok) {
+      console.error('Spotify top-tracks request failed:', spotifyRes);
+      res.status(502).json({ error: 'failed to fetch top tracks' });
+      return;
+    }
+
+    // console log top tracks for now
+    console.log(spotifyRes);
+    res.status(200).json({ message: 'check server logs' });
+  } catch (error) {
+    console.error('Failed to get top tracks:', error);
+    res.status(400).json({ error: 'Spotify account not connected' });
+  }
 });

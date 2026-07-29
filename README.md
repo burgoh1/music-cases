@@ -27,6 +27,16 @@
 - server makes a fetch call to spotify's token endpoint and comes back with spotify access tokens, etc...
 - update database with spotify token info by userId.
 
+- implementing logic when spotify needs to refresh an expired access token!!!
+- I need to check if my stores spotify access token is still valid before using it duhhh
+- were fetching spotify auth endpoint for a new access token everytime we make a req to spotify...
+- resource server
+- if the user's spotify access token is expired, call auth endpoint for a new one, if its not expired...
+- keep using the current spotify access token associated with the user account.
+
+- implementing actually getting something from spotify's api. FINALLYYY!!!
+- were fetching the top tracks from the users spotify and returning them to the console for now.
+
 - what I learned :D
 - our requireAuth middleware does not work when spotify redirects us to our callback URL because...
 - there is no code in that path that could attach an Authorization: Bearer 'access_token' header to...
