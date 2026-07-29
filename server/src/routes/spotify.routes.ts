@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { pool } from '../db.js';
+import { getValidSpotifyAccessToken } from '../services/spotify.service.js';
 
 // middleware
 import { requireAuth } from '../middleware/auth.middleware.js';
@@ -102,4 +103,38 @@ spotifyRouter.get('/callback', refreshCookie, async (req, res) => {
     [access_token, refresh_token, expiresAt, req.userId]
   );
   res.status(200).json({ message: 'Spotify connected' });
+});
+
+spotifyRouter.get('/top-tracks', requireAuth, async (req, res) => {
+  try {
+    const validSpotifyAccessToken = await getValidSpotifyAccessToken(
+      req.userId!
+    );
+
+    const topTracksRes = await fetch(
+      'https://api.spotify.com/v1/me/top/tracks',
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${validSpotifyAccessToken}`,
+        },
+      }
+    );
+
+    const spotifyRes = await topTracksRes.json();
+
+    if (!topTracksRes.ok) {
+      console.error('Spotify top-tracks request failed:', spotifyRes);
+      res.status(502).json({ error: 'failed to fetch top tracks' });
+      return;
+    }
+
+    // this console.log is the whole point of this route for now - it just
+    // proves the auth -> token refresh -> Spotify API chain works end to end.
+    console.log(spotifyRes);
+    res.status(200).json({ message: 'check server logs' });
+  } catch (err) {
+    console.error('Failed to get top tracks:', err);
+    res.status(400).json({ error: 'Spotify account not connected' });
+  }
 });
