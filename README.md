@@ -79,3 +79,55 @@ This section outlines the development process for creating music cases.
 - how data moves so far: login->requireAuth(verify accessToken)->/connect->redirect to SpotifyAuth->...
 
 - refreshCookie(verify refreshToken)->/callback
+
+# July 30, 2026
+
+## Design decisions for music cases
+
+- user can choose 1 out of 3 cases
+
+- each case is specified by the users top 3 genres they listen to the most
+
+- each case will contain 6-10 songs from its corresponding genre pulled from the users top tracks
+
+- rarity uses 3 tiers: Legendary, Epic, Rare (from rarest to most common)
+
+- there will be only 1 legendary card for each case.
+
+- Note: maybe add a pity system later on!?!?!?!
+
+- Note: right now im making a fetch to spotify api only when the user initially connects to spotify. maybe update the users card pool every week or two. implement this later on.
+
+## Cards table
+
+- user_id: tracks where these cards belong to
+
+- spotify_track_id: spotify's unique id for each track. I want cases to never have duplicates. check if the track id you are trying to add to a case is already included before adding the card into the case.
+
+- track_name: display to the user
+
+- artist_name: display to the user
+
+- genres: display to the user, i know some artists may not have a genre listed so if they dont default to an empty array
+
+- time_range: spotify lets me pull top tracks from 3 time ranges somewhere around 4 weeks, 6 months, and 6 years. not sure if thats right but its somewhere around there.
+
+- rank: a tracks position within its time_range. The first track in the array is the user's most-listened-to track for the selected time range. ties into rarity ;D
+
+- rarity: to label how rare a track is going to be (legendary, epic, or rare)
+
+- created_at: when the row was created
+
+- spotify api's top tracks endpoint has three distinct time ranges that gives us three distinct lists. once all the tracks for a case are collected, sort the list by ascending order then assign rarity from the lowest position being the legendary and so forth.
+
+# August 3, 2026
+
+## Merging and deduping top tracks
+
+- get top songs from each time range, merge all three lists and remove any duplicate tracks
+
+- if the same track appears in more than one time_range window, keep the track that has the highest rank
+
+- keeping SpotifyTrackItem and RankedTrack separate helps prevent issues where spotify changes their res shape. RankedTrack provides us with a stable source of truth that keeps merging, genre tagging and rarity implementation functions from breaking.
+
+- Spotify wraps the actual track list in an items field.
