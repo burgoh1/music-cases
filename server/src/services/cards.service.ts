@@ -115,33 +115,62 @@ async function fetchArtistsByIds(
   return data.artists;
 }
 
-/**
- * TASK: tag every track in the merged pool with its primary artist's
- * genres.
- *
- * Steps:
- * 1. Collect the UNIQUE artist IDs across `tracks` (many tracks will
- *    share the same artistId -- you only want to fetch each artist once).
- * 2. Spotify's Get Several Artists endpoint caps out at 50 IDs per call,
- *    so split the unique ID list into chunks of <=50 and call
- *    fetchArtistsByIds once per chunk.
- * 3. Build a lookup (artistId -> genres[]) from every artist object
- *    returned across all chunks.
- * 4. Return a new array where every track from the input also carries
- *    a `genres` field, populated from that lookup by the track's
- *    artistId.
- *
- * Hints:
- * - A Set is the natural tool for step 1 (dedupe artist IDs), the same
- *   way a Map was the natural tool for deduping tracks in mergeTopTracks.
- * - For chunking an array into groups of N, you don't have a built-in
- *   for this -- you'll loop and slice, e.g. array.slice(i, i + 50).
- * - Chunks are independent Spotify calls, so consider how the concurrency
- *   lesson from mergeTopTracks applies here too.
- */
+// Tags every track in the merged pool with its primary artist's genres.
+// Fetches each unique artist exactly once, batched in groups of <=50
+// (Spotify's Get Several Artists limit), then attaches genres back onto
+// every track via an artistId -> genres[] lookup.
 export async function tagTracksWithGenres(
   accessToken: string,
   tracks: RankedTrack[]
 ): Promise<GenreTaggedTrack[]> {
+  const uniqueArtistIds = [...new Set(tracks.map((track) => track.artistId))];
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < uniqueArtistIds.length; i += 50) {
+    chunks.push(uniqueArtistIds.slice(i, i + 50));
+  }
+
+  const artistInfo = (
+    await Promise.all(
+      chunks.map((chunk) => fetchArtistsByIds(accessToken, chunk))
+    )
+  ).flat();
+
+  const genreMap = new Map<string, string[]>();
+  for (const artist of artistInfo) {
+    genreMap.set(artist.id, artist.genres);
+  }
+
+  return tracks.map((track) => ({
+    ...track,
+    genres: genreMap.get(track.artistId) ?? [],
+  }));
+}
+
+/**
+ * TASK: compute the user's top 3 genres by frequency across the
+ * genre-tagged pool.
+ *
+ * A track can carry multiple genres (genres: string[]) -- every genre
+ * in a track's array counts as one occurrence toward that genre's
+ * tally. A track with 2 genres contributes to 2 different counts, not
+ * just one.
+ *
+ * Steps:
+ * 1. Walk every track, and every genre within each track's genres[],
+ *    building a running count per genre string.
+ * 2. Sort the counted genres by count, descending.
+ * 3. Return the top 3 genre names.
+ *
+ * Hints:
+ * - A Map<string, number> is the natural structure for step 1: for each
+ *   genre string encountered, if it's not in the map yet set it to 1,
+ *   otherwise increment the existing count.
+ * - You'll need two nested loops (or a loop + a forEach) since you're
+ *   iterating tracks, then within each track iterating its genres[].
+ * - For step 2, turning a Map into a sortable array of [genre, count]
+ *   pairs is done with Array.from(map.entries()) or [...map.entries()].
+ */
+export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
   throw new Error('not implemented');
 }
