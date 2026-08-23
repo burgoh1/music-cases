@@ -1,6 +1,7 @@
-type TimeRange = 'short_term' | 'medium_term' | 'long_term';
+import { pool } from '../db.js';
+import type { RarityTier } from './rarity.service.js';
 
-const TIME_RANGES: TimeRange[] = ['short_term', 'medium_term', 'long_term'];
+export type TimeRange = 'short_term' | 'medium_term' | 'long_term';
 
 interface SpotifyTrackItem {
   id: string;
@@ -163,4 +164,76 @@ export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
     .sort(([, countA], [, countB]) => countB - countA)
     .slice(0, 3)
     .map(([genre]) => genre);
+}
+
+/**
+ * TASK: group genre-tagged tracks into per-genre "case" buckets, one
+ * bucket per entry in topGenres.
+ *
+ * Lesson 6 scope: only handle the UNAMBIGUOUS case. A track whose
+ * genres[] contains EXACTLY ONE of the three topGenres goes into that
+ * genre's bucket. A track matching zero or multiple topGenres is
+ * skipped -- left out of every bucket entirely. Multi-genre conflict
+ * resolution (greedy-fill) is Lesson 8's job, not this one; don't pick
+ * an arbitrary genre here.
+ *
+ * Steps:
+ * 1. Create an empty bucket (array) for each genre in topGenres.
+ * 2. For each track, find which of topGenres appear in its genres[].
+ * 3. If there's exactly one match, push the track into that genre's
+ *    bucket. Otherwise, skip the track.
+ * 4. Return the buckets keyed by genre name.
+ *
+ * Hints:
+ * - A Map<string, GenreTaggedTrack[]> works well here: one entry per
+ *   topGenre, each value starting as an empty array.
+ * - `topGenres.filter((genre) => track.genres.includes(genre))` gives
+ *   you the matching genres for one track -- check its .length.
+ */
+export function buildGenreCases(
+  tracks: GenreTaggedTrack[],
+  topGenres: string[]
+): Map<string, GenreTaggedTrack[]> {
+  throw new Error('not implemented');
+}
+
+export interface CardInsertRow {
+  userId: number;
+  spotifyTrackId: string;
+  trackName: string;
+  artistName: string;
+  rank: number;
+  timeRange: TimeRange;
+  genres: string[];
+  rarity: RarityTier;
+  caseGenre: string;
+}
+
+/**
+ * TASK: bulk-insert all generated cards for a user in a single query.
+ *
+ * Columns, in order: user_id, spotify_track_id, track_name,
+ * artist_name, rank, time_range, genres, rarity, case_genre (9 columns).
+ *
+ * Steps:
+ * 1. If `rows` is empty, return immediately -- nothing to insert.
+ * 2. Build a parameterized multi-row INSERT: one VALUES group per row,
+ *    e.g. ($1,$2,...,$9), ($10,$11,...,$18), ... one group per row in
+ *    `rows`, joined with commas.
+ * 3. Flatten every row's values, in the same column order as the
+ *    placeholders, into a single flat array to pass as the query's
+ *    parameters.
+ * 4. Run it with pool.query(sql, values).
+ *
+ * Hints:
+ * - Each row needs 9 placeholders. For row index i (0-based), its
+ *   placeholders start at (i * 9) + 1 -- e.g. row 0 is $1..$9, row 1
+ *   is $10..$18.
+ * - Build an array of placeholder-group strings (one per row), then
+ *   .join(', ') them into the VALUES clause of your SQL string.
+ * - The flat params array must list every row's 9 values back-to-back,
+ *   in the exact order your placeholders reference them.
+ */
+export async function insertCards(rows: CardInsertRow[]): Promise<void> {
+  throw new Error('not implemented');
 }
