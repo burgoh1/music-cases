@@ -194,7 +194,25 @@ export function buildGenreCases(
   tracks: GenreTaggedTrack[],
   topGenres: string[]
 ): Map<string, GenreTaggedTrack[]> {
-  throw new Error('not implemented');
+  const genreCases = new Map<string, GenreTaggedTrack[]>(
+    topGenres.map((genre) => [genre, []])
+  );
+
+  for (const track of tracks) {
+    const matchingGenres = topGenres.filter((genre) =>
+      track.genres.includes(genre)
+    );
+
+    const matchingGenre = matchingGenres[0];
+    if (matchingGenres.length === 1 && matchingGenre !== undefined) {
+      const caseTracks = genreCases.get(matchingGenre);
+      if (caseTracks !== undefined) {
+        caseTracks.push(track);
+      }
+    }
+  }
+
+  return genreCases;
 }
 
 export interface CardInsertRow {
@@ -235,5 +253,38 @@ export interface CardInsertRow {
  *   in the exact order your placeholders reference them.
  */
 export async function insertCards(rows: CardInsertRow[]): Promise<void> {
-  throw new Error('not implemented');
+  if (rows.length === 0) {
+    return;
+  }
+
+  const columnCount = 9;
+  const valueGroups = rows.map((_, rowIndex) => {
+    const firstPlaceholder = rowIndex * columnCount + 1;
+    const placeholders = Array.from(
+      { length: columnCount },
+      (_, columnIndex) => `$${firstPlaceholder + columnIndex}`
+    );
+    return `(${placeholders.join(', ')})`;
+  });
+
+  const values = rows.flatMap((row) => [
+    row.userId,
+    row.spotifyTrackId,
+    row.trackName,
+    row.artistName,
+    row.rank,
+    row.timeRange,
+    row.genres,
+    row.rarity,
+    row.caseGenre,
+  ]);
+
+  const sql = `
+    INSERT INTO cards (
+      user_id, spotify_track_id, track_name, artist_name, rank,
+      time_range, genres, rarity, case_genre
+    ) VALUES ${valueGroups.join(', ')}
+  `;
+
+  await pool.query(sql, values);
 }
