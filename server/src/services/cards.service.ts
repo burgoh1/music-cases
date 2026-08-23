@@ -1,6 +1,9 @@
 import { pool } from '../db.js';
 import type { RarityTier } from './rarity.service.js';
 
+// Thrown when Spotify rejects a request with 401 (user needs to reconnect Spotify)
+export class SpotifyAuthError extends Error {}
+
 // valid time ranges for spotify api endpoint preventing fetching errors
 type TimeRange = 'short_term' | 'medium_term' | 'long_term';
 
@@ -34,6 +37,11 @@ async function fetchTopTracksForRange(
   );
 
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new SpotifyAuthError(
+        `spotify auth failed fetching top tracks for ${timeRange}`
+      );
+    }
     throw new Error(`failed to fetch top tracks for ${timeRange}`);
   }
 
@@ -124,6 +132,9 @@ async function fetchArtistsByIds(
   );
 
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new SpotifyAuthError('spotify auth failed fetching artists');
+    }
     throw new Error('failed to fetch artists');
   }
 
@@ -340,4 +351,16 @@ export function groupCardsForSummary(cards: CardRow[]): PoolSummary {
   }
 
   return { totalCards: cards.length, byRarity, byGenreCase };
+}
+
+// check whether a user already has a generated pool
+export async function hasExistingPool(userId: number): Promise<boolean> {
+  // search cards table for one placeholder value
+  const result = await pool.query(
+    'SELECT 1 FROM cards WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+
+  // 1 = pool exists. 2 = pool does not exist.
+  return (result.rowCount ?? 0) > 0;
 }

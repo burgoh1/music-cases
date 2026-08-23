@@ -176,4 +176,8 @@ This section outlines the development process for creating music cases.
 
 ## cards route pipeline guards for edge cases
 
--
+- added a error handler for whenever spotify rejects a request mid cards pipeline. user will be notified what type of error occured and if they need to do anything (reconnect to spotify).
+
+- implemented hasExistingPool in `cards.service.ts` which avoids spotify round calls when a pool is already generated
+
+- reworked error handling for functions that make fetch calls to spotify. it will now recognize and differentiate spotify authentication errors from generic errors.
