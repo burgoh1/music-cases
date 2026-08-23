@@ -10,6 +10,8 @@ import {
   insertCards,
   getCardsForUser,
   groupCardsForSummary,
+  hasExistingPool,
+  SpotifyAuthError,
   type CardInsertRow,
 } from '../services/cards.service.js';
 
@@ -17,6 +19,11 @@ export const cardsRouter = Router();
 
 cardsRouter.post('/generate-pool', requireAuth, async (req, res) => {
   try {
+    if (await hasExistingPool(req.userId!)) {
+      res.status(409).json({ error: 'pool already generated for this user' });
+      return;
+    }
+
     const accessToken = await getValidSpotifyAccessToken(req.userId!);
 
     const merged = await mergeTopTracks(accessToken);
@@ -45,6 +52,12 @@ cardsRouter.post('/generate-pool', requireAuth, async (req, res) => {
     await insertCards(rows);
     res.status(201).json({ message: 'pool generated', cardCount: rows.length });
   } catch (error) {
+    if (error instanceof SpotifyAuthError) {
+      res
+        .status(401)
+        .json({ error: 'Spotify authorization expired, please reconnect' });
+      return;
+    }
     console.error('Failed to generate pool:', error);
     res.status(500).json({ error: 'failed to generate pool' });
   }

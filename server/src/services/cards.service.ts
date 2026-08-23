@@ -1,6 +1,11 @@
 import { pool } from '../db.js';
 import type { RarityTier } from './rarity.service.js';
 
+// Thrown when Spotify rejects a request with 401, distinguishing an
+// auth failure (user needs to reconnect Spotify) from any other
+// failure (network issue, Spotify outage, etc).
+export class SpotifyAuthError extends Error {}
+
 export type TimeRange = 'short_term' | 'medium_term' | 'long_term';
 
 interface SpotifyTrackItem {
@@ -355,5 +360,41 @@ export interface PoolSummary {
  * 4. Return { totalCards: cards.length, byRarity, byGenreCase }.
  */
 export function groupCardsForSummary(cards: CardRow[]): PoolSummary {
+  const byRarity: Record<RarityTier, CardRow[]> = {
+    Legendary: [],
+    Epic: [],
+    Rare: [],
+  };
+  const byGenreCase: Record<string, { count: number; cards: CardRow[] }> = {};
+
+  for (const card of cards) {
+    byRarity[card.rarity].push(card);
+
+    let genreCase = byGenreCase[card.caseGenre];
+    if (genreCase === undefined) {
+      genreCase = { count: 0, cards: [] };
+      byGenreCase[card.caseGenre] = genreCase;
+    }
+
+    genreCase.count += 1;
+    genreCase.cards.push(card);
+  }
+
+  return { totalCards: cards.length, byRarity, byGenreCase };
+}
+
+/**
+ * TASK: check whether a user already has a generated pool.
+ *
+ * Steps:
+ * 1. Query for any row in `cards` with this user_id (you only need to
+ *    know if at least one exists -- LIMIT 1 is enough, no need to
+ *    fetch or count everything).
+ * 2. Return true if a row was found, false otherwise.
+ *
+ * Hint: pool.query's result has a `rowCount` field telling you how
+ * many rows came back.
+ */
+export async function hasExistingPool(userId: number): Promise<boolean> {
   throw new Error('not implemented');
 }
