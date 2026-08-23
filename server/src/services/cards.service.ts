@@ -253,7 +253,49 @@ export function buildGenreCases(
   tracks: GenreTaggedTrack[],
   topGenres: string[]
 ): Map<string, GenreTaggedTrack[]> {
-  throw new Error('not implemented');
+  const genreFrequency = countGenreFrequency(tracks);
+  const genreCases = new Map<string, GenreTaggedTrack[]>(
+    topGenres.map((genre) => [genre, []])
+  );
+  const sortedTracks = [...tracks].sort(
+    (trackA, trackB) => trackA.rank - trackB.rank
+  );
+
+  for (const track of sortedTracks) {
+    const matchingGenres = topGenres.filter((genre) =>
+      track.genres.includes(genre)
+    );
+
+    let selectedGenre: string | undefined;
+    let smallestBucketSize = Infinity;
+    let highestFrequency = -Infinity;
+
+    for (const genre of matchingGenres) {
+      const bucket = genreCases.get(genre);
+      if (bucket === undefined) {
+        continue;
+      }
+
+      const frequency = genreFrequency.get(genre) ?? 0;
+      if (
+        bucket.length < smallestBucketSize ||
+        (bucket.length === smallestBucketSize && frequency > highestFrequency)
+      ) {
+        selectedGenre = genre;
+        smallestBucketSize = bucket.length;
+        highestFrequency = frequency;
+      }
+    }
+
+    if (selectedGenre !== undefined) {
+      const selectedBucket = genreCases.get(selectedGenre);
+      if (selectedBucket !== undefined) {
+        selectedBucket.push(track);
+      }
+    }
+  }
+
+  return genreCases;
 }
 
 /**
@@ -289,7 +331,35 @@ export function applyGenreSubstitution(
   allTracks: GenreTaggedTrack[],
   fourthGenre: string
 ): Map<string, GenreTaggedTrack[]> {
-  throw new Error('not implemented');
+  const assignedTrackIds = new Set<string>();
+  for (const caseTracks of genreCases.values()) {
+    for (const track of caseTracks) {
+      assignedTrackIds.add(track.spotifyTrackId);
+    }
+  }
+
+  let failingGenre: string | undefined;
+  for (const [genre, caseTracks] of genreCases) {
+    if (caseTracks.length < 5) {
+      failingGenre = genre;
+      break;
+    }
+  }
+
+  if (failingGenre === undefined) {
+    return genreCases;
+  }
+
+  genreCases.delete(failingGenre);
+
+  const substituteTracks = allTracks.filter(
+    (track) =>
+      !assignedTrackIds.has(track.spotifyTrackId) &&
+      track.genres.includes(fourthGenre)
+  );
+  genreCases.set(fourthGenre, substituteTracks);
+
+  return genreCases;
 }
 
 export interface CardInsertRow {
