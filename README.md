@@ -147,3 +147,13 @@ This section outlines the development process for creating music cases.
 - went ahead and implemented a function that takes each track's genre and tallies them by occurence and returns the top three genres of the user.
 
 - a track can have multiple genres. Each one of those genres gets one tally.
+
+## Rarity tagging
+
+- implemented assignRarity function in `rarity.services.ts` that assign a rarity tier to every track in a single case's song list.
+
+- when tracks are sorted by rank, index 0 always gets the `legendary` rarity.
+
+- I decided the number of epic cards to based on the number of tracks in a case divided by three keeping the number of epic cards lean (more valuable). ~30% of the cards in a case is epic.
+
+- the remainder of tracks is assigned to rare
