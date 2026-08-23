@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { authRouter } from './routes/auth.routes.js';
 import cookieParser from 'cookie-parser';
 import { spotifyRouter } from './routes/spotify.routes.js';
+import { cardsRouter } from './routes/cards.routes.js';
 
 dotenv.config();
 const app = express();
@@ -17,6 +18,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/spotify', spotifyRouter);
+app.use('/api/cards', cardsRouter);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

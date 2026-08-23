@@ -157,3 +157,15 @@ This section outlines the development process for creating music cases.
 - I decided the number of epic cards to based on the number of tracks in a case divided by three keeping the number of epic cards lean (more valuable). ~30% of the cards in a case is epic.
 
 - the remainder of tracks is assigned to rare
+
+## Genre cases and saving cards into the database
+
+- implemented buildGenreCases in `cards.service.ts` which groups genre tagged tracks into a genre bucket, three buckets bacause topGenres finds the top three genres of the users top tracks. I also want the user to pick from their top three genres.
+
+- right now the function only accounts for tracks whos genres[] contains exactly one of the three topGenres.
+
+- we skip tracks that have no genre(s). we also skip tracks with multiple genres for now (this edge case will be resolved later)
+
+- implemented insertCards in `cards.service.ts` which inserts all generated cards for a user in a single query
+
+- `cards.routes.ts` chains getValidSpotifyAccessToken, mergeTopTracks, tagTracksWithGenres, getTopGenres, and buildGenreCases into one pipeline.

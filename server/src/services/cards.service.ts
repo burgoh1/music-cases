@@ -1,3 +1,6 @@
+import { pool } from '../db.js';
+import type { RarityTier } from './rarity.service.js';
+
 // valid time ranges for spotify api endpoint preventing fetching errors
 type TimeRange = 'short_term' | 'medium_term' | 'long_term';
 
@@ -178,4 +181,94 @@ export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
     .sort(([, countA], [, countB]) => countB - countA)
     .slice(0, 3)
     .map(([genre]) => genre);
+}
+
+// group genre tagged tracks into a genre bucket, three buckets in topGenres
+export function buildGenreCases(
+  tracks: GenreTaggedTrack[],
+  topGenres: string[]
+): Map<string, GenreTaggedTrack[]> {
+  // map with one empty track array for each genre
+  const genreCases = new Map<string, GenreTaggedTrack[]>(
+    topGenres.map((genre) => [genre, []])
+  );
+
+  for (const track of tracks) {
+    // finds which top genres belong to the current track
+    const matchingGenres = topGenres.filter((genre) =>
+      track.genres.includes(genre)
+    );
+
+    // continue only if exactly one top genre matches
+    const matchingGenre = matchingGenres[0];
+    if (matchingGenres.length === 1 && matchingGenre !== undefined) {
+      // gets that genre's array from the map and adds the track to it
+      const caseTracks = genreCases.get(matchingGenre);
+      if (caseTracks !== undefined) {
+        caseTracks.push(track);
+      }
+    }
+  }
+
+  // completed set of genre case buckets
+  return genreCases;
+}
+
+// for database
+export interface CardInsertRow {
+  userId: number;
+  spotifyTrackId: string;
+  trackName: string;
+  artistName: string;
+  rank: number;
+  timeRange: TimeRange;
+  genres: string[];
+  rarity: RarityTier;
+  caseGenre: string;
+}
+
+// insert all generated cards for a user in a single query
+export async function insertCards(rows: CardInsertRow[]): Promise<void> {
+  // returns immediately when there are no cards, prevents invalid sql query
+  if (rows.length === 0) {
+    return;
+  }
+
+  const columnCount = 9;
+  // sql placeholder for each card row
+  const valueGroups = rows.map((_, rowIndex) => {
+    // works out where this row’s numbered parameters begin
+    const firstPlaceholder = rowIndex * columnCount + 1;
+    // creates the nine placeholders for a row ($1-$9)
+    const placeholders = Array.from(
+      { length: columnCount },
+      (_, columnIndex) => `$${firstPlaceholder + columnIndex}`
+    );
+
+    // turns them into sql
+    return `(${placeholders.join(', ')})`;
+  });
+
+  // flat array of values in the same order as the sql columns and placeholders
+  const values = rows.flatMap((row) => [
+    row.userId,
+    row.spotifyTrackId,
+    row.trackName,
+    row.artistName,
+    row.rank,
+    row.timeRange,
+    row.genres,
+    row.rarity,
+    row.caseGenre,
+  ]);
+
+  // complete sql statement that safely handles values
+  const sql = `
+    INSERT INTO cards (
+      user_id, spotify_track_id, track_name, artist_name, rank,
+      time_range, genres, rarity, case_genre
+    ) VALUES ${valueGroups.join(', ')}
+  `;
+
+  await pool.query(sql, values);
 }
