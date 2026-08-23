@@ -7,6 +7,7 @@ import {
   tagTracksWithGenres,
   getTopGenres,
   buildGenreCases,
+  applyGenreSubstitution,
   insertCards,
   getCardsForUser,
   groupCardsForSummary,
@@ -28,8 +29,14 @@ cardsRouter.post('/generate-pool', requireAuth, async (req, res) => {
 
     const merged = await mergeTopTracks(accessToken);
     const tagged = await tagTracksWithGenres(accessToken, merged);
-    const topGenres = getTopGenres(tagged);
-    const genreCases = buildGenreCases(tagged, topGenres);
+    const topFourGenres = getTopGenres(tagged, 4);
+    const topGenres = topFourGenres.slice(0, 3);
+    const fourthGenre = topFourGenres[3];
+
+    let genreCases = buildGenreCases(tagged, topGenres);
+    if (fourthGenre) {
+      genreCases = applyGenreSubstitution(genreCases, tagged, fourthGenre);
+    }
 
     const rows: CardInsertRow[] = [];
     for (const [genre, caseTracks] of genreCases) {

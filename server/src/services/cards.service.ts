@@ -161,10 +161,12 @@ export async function tagTracksWithGenres(
   }));
 }
 
-// Computes the user's top 3 genres by frequency across the genre-tagged
-// pool. A track with multiple genres contributes one tally to each of
-// its genres, not just its first.
-export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
+// Tallies genre occurrences across the genre-tagged pool. A track with
+// multiple genres contributes one tally to each of its genres, not
+// just its first.
+export function countGenreFrequency(
+  tracks: GenreTaggedTrack[]
+): Map<string, number> {
   const genreCounts = new Map<string, number>();
 
   for (const track of tracks) {
@@ -173,9 +175,19 @@ export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
     }
   }
 
+  return genreCounts;
+}
+
+// Computes the user's top `count` genres by frequency (default 3).
+export function getTopGenres(
+  tracks: GenreTaggedTrack[],
+  count: number = 3
+): string[] {
+  const genreCounts = countGenreFrequency(tracks);
+
   return [...genreCounts.entries()]
     .sort(([, countA], [, countB]) => countB - countA)
-    .slice(0, 3)
+    .slice(0, count)
     .map(([genre]) => genre);
 }
 
@@ -203,29 +215,81 @@ export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
  * - `topGenres.filter((genre) => track.genres.includes(genre))` gives
  *   you the matching genres for one track -- check its .length.
  */
+/**
+ * TASK: group genre-tagged tracks into per-genre case buckets, now
+ * fully resolving ambiguous (multi-top-genre) tracks via greedy-fill
+ * instead of skipping them.
+ *
+ * Rules (already decided in the spec):
+ * - Process tracks in RANK order, best first -- sort a COPY of `tracks`
+ *   by rank ascending before assigning anything.
+ * - Matches exactly one topGenre: assign there, same as before.
+ * - Matches zero topGenres: still skip -- no case wants it.
+ * - Matches two or more topGenres: assign to whichever of those
+ *   matching buckets CURRENTLY holds the fewest tracks (bucket sizes
+ *   change as you go, which is why rank order matters -- earlier
+ *   greedy choices affect later ones). If multiple candidates are
+ *   tied for fewest, break the tie by whichever genre has the higher
+ *   OVERALL frequency across the whole pool.
+ *
+ * Steps:
+ * 1. Sort a copy of `tracks` by rank ascending.
+ * 2. Compute genreFrequency = countGenreFrequency(tracks) once, up
+ *    front, for the tie-break.
+ * 3. Initialize the empty buckets, one per topGenre (as before).
+ * 4. Walk the SORTED tracks. For each, find matchingGenres. If 0,
+ *    skip. If 1, assign directly. If 2+, pick the smallest matching
+ *    bucket right now (tie-break via genreFrequency), then push.
+ * 5. Return the buckets.
+ *
+ * Hints:
+ * - "Smallest matching bucket" = among matchingGenres, whichever has
+ *   the lowest genreCases.get(genre)!.length at this point in the loop.
+ * - A plain loop comparing candidates one at a time works fine for
+ *   picking the smallest (with a tie-break fallback to
+ *   genreFrequency.get(genre)) -- no need for anything fancier.
+ */
 export function buildGenreCases(
   tracks: GenreTaggedTrack[],
   topGenres: string[]
 ): Map<string, GenreTaggedTrack[]> {
-  const genreCases = new Map<string, GenreTaggedTrack[]>(
-    topGenres.map((genre) => [genre, []])
-  );
+  throw new Error('not implemented');
+}
 
-  for (const track of tracks) {
-    const matchingGenres = topGenres.filter((genre) =>
-      track.genres.includes(genre)
-    );
-
-    const matchingGenre = matchingGenres[0];
-    if (matchingGenres.length === 1 && matchingGenre !== undefined) {
-      const caseTracks = genreCases.get(matchingGenre);
-      if (caseTracks !== undefined) {
-        caseTracks.push(track);
-      }
-    }
-  }
-
-  return genreCases;
+/**
+ * TASK: replace any case bucket that can't clear a 5-song floor with a
+ * new bucket built from the user's 4th-ranked genre.
+ *
+ * Rules (per spec):
+ * - "Can't clear the floor" means bucket.length < 5.
+ * - A failing bucket isn't padded and doesn't keep its label -- it's
+ *   discarded outright and replaced by a brand-new bucket keyed to
+ *   `fourthGenre`.
+ * - The substitute bucket is built from tracks NOT already assigned to
+ *   any of the OTHER (surviving) buckets, whose genres[] includes
+ *   fourthGenre. Tracks already sitting in a healthy bucket stay put --
+ *   this never steals from a bucket that already cleared the floor.
+ * - This only needs to handle ONE failing bucket. More than one
+ *   bucket failing at once (or the substitute itself failing) is a
+ *   rarer edge-case-of-edge-case this MVP doesn't need to solve.
+ *
+ * Steps:
+ * 1. Build a Set of every spotifyTrackId already assigned across ALL
+ *    of genreCases' current buckets.
+ * 2. Find a bucket in genreCases with fewer than 5 tracks (if none,
+ *    return genreCases unchanged).
+ * 3. Delete that failing bucket's entry from the map.
+ * 4. Add a new entry keyed by fourthGenre: every track in `allTracks`
+ *    that is NOT in the assigned-ID set from step 1 AND has
+ *    fourthGenre in its genres[].
+ * 5. Return the modified map.
+ */
+export function applyGenreSubstitution(
+  genreCases: Map<string, GenreTaggedTrack[]>,
+  allTracks: GenreTaggedTrack[],
+  fourthGenre: string
+): Map<string, GenreTaggedTrack[]> {
+  throw new Error('not implemented');
 }
 
 export interface CardInsertRow {
@@ -404,5 +468,10 @@ export function groupCardsForSummary(cards: CardRow[]): PoolSummary {
  * many rows came back.
  */
 export async function hasExistingPool(userId: number): Promise<boolean> {
-  throw new Error('not implemented');
+  const result = await pool.query(
+    'SELECT 1 FROM cards WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+
+  return (result.rowCount ?? 0) > 0;
 }
