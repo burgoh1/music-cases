@@ -147,30 +147,20 @@ export async function tagTracksWithGenres(
   }));
 }
 
-/**
- * TASK: compute the user's top 3 genres by frequency across the
- * genre-tagged pool.
- *
- * A track can carry multiple genres (genres: string[]) -- every genre
- * in a track's array counts as one occurrence toward that genre's
- * tally. A track with 2 genres contributes to 2 different counts, not
- * just one.
- *
- * Steps:
- * 1. Walk every track, and every genre within each track's genres[],
- *    building a running count per genre string.
- * 2. Sort the counted genres by count, descending.
- * 3. Return the top 3 genre names.
- *
- * Hints:
- * - A Map<string, number> is the natural structure for step 1: for each
- *   genre string encountered, if it's not in the map yet set it to 1,
- *   otherwise increment the existing count.
- * - You'll need two nested loops (or a loop + a forEach) since you're
- *   iterating tracks, then within each track iterating its genres[].
- * - For step 2, turning a Map into a sortable array of [genre, count]
- *   pairs is done with Array.from(map.entries()) or [...map.entries()].
- */
+// Computes the user's top 3 genres by frequency across the genre-tagged
+// pool. A track with multiple genres contributes one tally to each of
+// its genres, not just its first.
 export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
-  throw new Error('not implemented');
+  const genreCounts = new Map<string, number>();
+
+  for (const track of tracks) {
+    for (const genre of track.genres) {
+      genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1);
+    }
+  }
+
+  return [...genreCounts.entries()]
+    .sort(([, countA], [, countB]) => countB - countA)
+    .slice(0, 3)
+    .map(([genre]) => genre);
 }
