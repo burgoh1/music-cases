@@ -272,3 +272,72 @@ export async function insertCards(rows: CardInsertRow[]): Promise<void> {
 
   await pool.query(sql, values);
 }
+
+export interface CardRow {
+  id: number;
+  spotifyTrackId: string;
+  trackName: string;
+  artistName: string;
+  rank: number;
+  timeRange: TimeRange;
+  genres: string[];
+  rarity: RarityTier;
+  caseGenre: string;
+}
+
+// Fetches every card generated for a user, ordered by case then rank.
+export async function getCardsForUser(userId: number): Promise<CardRow[]> {
+  const result = await pool.query<CardRow>(
+    `SELECT
+       id,
+       spotify_track_id AS "spotifyTrackId",
+       track_name AS "trackName",
+       artist_name AS "artistName",
+       rank,
+       time_range AS "timeRange",
+       genres,
+       rarity,
+       case_genre AS "caseGenre"
+     FROM cards
+     WHERE user_id = $1
+     ORDER BY case_genre, rank`,
+    [userId]
+  );
+  return result.rows;
+}
+
+export interface PoolSummary {
+  totalCards: number;
+  byRarity: Record<RarityTier, CardRow[]>;
+  byGenreCase: Record<string, { count: number; cards: CardRow[] }>;
+}
+
+// reshapes a flat CardRow[] into the two grouped views the /my-pool endpoint needs
+export function groupCardsForSummary(cards: CardRow[]): PoolSummary {
+  // view rarity distribution
+  const byRarity: Record<RarityTier, CardRow[]> = {
+    Legendary: [],
+    Epic: [],
+    Rare: [],
+  };
+  // view track distribution per top genre
+  const byGenreCase: Record<string, { count: number; cards: CardRow[] }> = {};
+
+  for (const card of cards) {
+    // use card rarity as obj key and append to corresponding rarity array
+    byRarity[card.rarity].push(card);
+
+    // looks for card's genre case
+    let genreCase = byGenreCase[card.caseGenre];
+    // creates genre case group the first time that genre is seen
+    if (genreCase === undefined) {
+      genreCase = { count: 0, cards: [] };
+      byGenreCase[card.caseGenre] = genreCase;
+    }
+
+    genreCase.count += 1;
+    genreCase.cards.push(card);
+  }
+
+  return { totalCards: cards.length, byRarity, byGenreCase };
+}

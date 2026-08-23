@@ -164,8 +164,16 @@ This section outlines the development process for creating music cases.
 
 - right now the function only accounts for tracks whos genres[] contains exactly one of the three topGenres.
 
-- we skip tracks that have no genre(s). we also skip tracks with multiple genres for now (this edge case will be resolved later)
+- we skip tracks that have no genre(s). we also skip tracks with multiple genres that match multiple topGenres for now (this edge case will be resolved later)
 
 - implemented insertCards in `cards.service.ts` which inserts all generated cards for a user in a single query
 
 - `cards.routes.ts` chains getValidSpotifyAccessToken, mergeTopTracks, tagTracksWithGenres, getTopGenres, and buildGenreCases into one pipeline.
+
+## Pool generation test
+
+- wanted to see how each bucket looks like after a real call is made to spotify. Im checking if the genre cases land somewhere near 6-10 tracks per case and how the rarity distribution looks appropriate
+
+## cards route pipeline guards for edge cases
+
+-
