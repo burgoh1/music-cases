@@ -177,51 +177,137 @@ export async function tagTracksWithGenres(
   }));
 }
 
-// compute the user's top 3 genres by frequency across the
-export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
+// Tallies genre occurrences across the genre tagged pool
+export function countGenreFrequency(
+  tracks: GenreTaggedTrack[]
+): Map<string, number> {
   const genreCounts = new Map<string, number>();
 
   for (const track of tracks) {
-    // every genre in a track's array counts as one occurrence
+    // multiple genres contributes one tally to each of its genres
     for (const genre of track.genres) {
       genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1);
     }
   }
 
+  return genreCounts;
+}
+
+// compute the user's top three genres by frequency
+export function getTopGenres(
+  tracks: GenreTaggedTrack[],
+  count: number = 3
+): string[] {
+  const genreCounts = countGenreFrequency(tracks);
+
   return [...genreCounts.entries()]
     .sort(([, countA], [, countB]) => countB - countA)
-    .slice(0, 3)
+    .slice(0, count)
     .map(([genre]) => genre);
 }
 
-// group genre tagged tracks into a genre bucket, three buckets in topGenres
+// group tracks into genre case buckets
 export function buildGenreCases(
   tracks: GenreTaggedTrack[],
   topGenres: string[]
 ): Map<string, GenreTaggedTrack[]> {
-  // map with one empty track array for each genre
+  // counts every genre across full track pool once
+  const genreFrequency = countGenreFrequency(tracks);
+  // creates empty bucket for top genres
   const genreCases = new Map<string, GenreTaggedTrack[]>(
     topGenres.map((genre) => [genre, []])
   );
+  // sort tracks by accending order
+  const sortedTracks = [...tracks].sort(
+    (trackA, trackB) => trackA.rank - trackB.rank
+  );
 
-  for (const track of tracks) {
-    // finds which top genres belong to the current track
+  // for each track find which of the top genres appear in its genre list
+  for (const track of sortedTracks) {
     const matchingGenres = topGenres.filter((genre) =>
       track.genres.includes(genre)
     );
 
-    // continue only if exactly one top genre matches
-    const matchingGenre = matchingGenres[0];
-    if (matchingGenres.length === 1 && matchingGenre !== undefined) {
-      // gets that genre's array from the map and adds the track to it
-      const caseTracks = genreCases.get(matchingGenre);
-      if (caseTracks !== undefined) {
-        caseTracks.push(track);
+    // sets up values used to choose the bucket
+    let selectedGenre: string | undefined;
+    let smallestBucketSize = Infinity;
+    let highestFrequency = -Infinity;
+
+    // loops over just the genres that match this track
+    for (const genre of matchingGenres) {
+      // gets each matching bucket
+      const bucket = genreCases.get(genre);
+      if (bucket === undefined) {
+        continue;
+      }
+
+      // how many tallies of each genre
+      const frequency = genreFrequency.get(genre) ?? 0;
+      if (
+        // bucket has fewer cards than the current best candidate
+        bucket.length < smallestBucketSize ||
+        // bucket is tied for fewest cards but the genre is more frequent overall
+        (bucket.length === smallestBucketSize && frequency > highestFrequency)
+      ) {
+        // records the best candidate so far
+        selectedGenre = genre;
+        smallestBucketSize = bucket.length;
+        highestFrequency = frequency;
+      }
+    }
+
+    // add track to chosen bucket
+    if (selectedGenre !== undefined) {
+      const selectedBucket = genreCases.get(selectedGenre);
+      if (selectedBucket !== undefined) {
+        selectedBucket.push(track);
       }
     }
   }
 
-  // completed set of genre case buckets
+  return genreCases;
+}
+
+// replace any case bucket that cant clear a 5 song floor
+// with a new bucket built from the user's 4th ranked genre
+export function applyGenreSubstitution(
+  genreCases: Map<string, GenreTaggedTrack[]>,
+  allTracks: GenreTaggedTrack[],
+  fourthGenre: string
+): Map<string, GenreTaggedTrack[]> {
+  const assignedTrackIds = new Set<string>();
+  // records the ID of every already assigned track
+  for (const caseTracks of genreCases.values()) {
+    for (const track of caseTracks) {
+      assignedTrackIds.add(track.spotifyTrackId);
+    }
+  }
+
+  // finds the first genre case bucket containing fewer than five tracks
+  let failingGenre: string | undefined;
+  for (const [genre, caseTracks] of genreCases) {
+    if (caseTracks.length < 5) {
+      failingGenre = genre;
+      break;
+    }
+  }
+
+  // return if every bucket has at least 5 tracks
+  if (failingGenre === undefined) {
+    return genreCases;
+  }
+
+  // remove undersized genre bucket
+  genreCases.delete(failingGenre);
+
+  // replacement case includes nonassigned tracks for 4th ranked genre
+  const substituteTracks = allTracks.filter(
+    (track) =>
+      !assignedTrackIds.has(track.spotifyTrackId) &&
+      track.genres.includes(fourthGenre)
+  );
+  genreCases.set(fourthGenre, substituteTracks);
+
   return genreCases;
 }
 

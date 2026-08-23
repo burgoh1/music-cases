@@ -181,3 +181,9 @@ This section outlines the development process for creating music cases.
 - implemented hasExistingPool in `cards.service.ts` which avoids spotify round calls when a pool is already generated
 
 - reworked error handling for functions that make fetch calls to spotify. it will now recognize and differentiate spotify authentication errors from generic errors.
+
+## Greedy fill and 4th genre substitution
+
+- greedy fill is an algorithm that handles tracks matching two or more of the top three genres. first we process tracks in rank order, best tracks first. when tracks match two or more of the top three genres, we take a look at how many songs are in each of those genre buckets and place the track into whichever one currently holds the least amount of tracks. if two buckets are tied for the smallest, pick whichever of those genres is more frequent overall accross the users whole pool.
+
+- 4th genre substitution happens when a bucket cant clear more than five songs. We replace any of the top three genres with the 4th rank genre
