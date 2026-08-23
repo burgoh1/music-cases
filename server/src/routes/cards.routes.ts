@@ -8,6 +8,8 @@ import {
   getTopGenres,
   buildGenreCases,
   insertCards,
+  getCardsForUser,
+  groupCardsForSummary,
   type CardInsertRow,
 } from '../services/cards.service.js';
 
@@ -45,5 +47,16 @@ cardsRouter.post('/generate-pool', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Failed to generate pool:', error);
     res.status(500).json({ error: 'failed to generate pool' });
+  }
+});
+
+cardsRouter.get('/my-pool', requireAuth, async (req, res) => {
+  try {
+    const cards = await getCardsForUser(req.userId!);
+    const summary = groupCardsForSummary(cards);
+    res.status(200).json(summary);
+  } catch (error) {
+    console.error('Failed to fetch pool:', error);
+    res.status(500).json({ error: 'failed to fetch pool' });
   }
 });

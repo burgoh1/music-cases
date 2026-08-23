@@ -288,3 +288,72 @@ export async function insertCards(rows: CardInsertRow[]): Promise<void> {
 
   await pool.query(sql, values);
 }
+
+export interface CardRow {
+  id: number;
+  spotifyTrackId: string;
+  trackName: string;
+  artistName: string;
+  rank: number;
+  timeRange: TimeRange;
+  genres: string[];
+  rarity: RarityTier;
+  caseGenre: string;
+}
+
+// Fetches every card generated for a user, ordered by case then rank.
+export async function getCardsForUser(userId: number): Promise<CardRow[]> {
+  const result = await pool.query<CardRow>(
+    `SELECT
+       id,
+       spotify_track_id AS "spotifyTrackId",
+       track_name AS "trackName",
+       artist_name AS "artistName",
+       rank,
+       time_range AS "timeRange",
+       genres,
+       rarity,
+       case_genre AS "caseGenre"
+     FROM cards
+     WHERE user_id = $1
+     ORDER BY case_genre, rank`,
+    [userId]
+  );
+  return result.rows;
+}
+
+export interface PoolSummary {
+  totalCards: number;
+  byRarity: Record<RarityTier, CardRow[]>;
+  byGenreCase: Record<string, { count: number; cards: CardRow[] }>;
+}
+
+/**
+ * TASK: reshape a flat CardRow[] into the two grouped views the
+ * /my-pool endpoint needs.
+ *
+ * byRarity: one entry per RarityTier ('Legendary', 'Epic', 'Rare'),
+ * each holding every card with that rarity. Since RarityTier only ever
+ * has those 3 possible values, initialize all 3 keys up front (with
+ * empty arrays) rather than discovering them dynamically -- unlike
+ * genre names, you already know exactly what they are.
+ *
+ * byGenreCase: one entry per distinct caseGenre value actually present
+ * in `cards`, each holding both a running count and the matching
+ * cards. Genre names aren't fixed like rarity tiers, so build these
+ * keys dynamically as you encounter them (same pattern as the Map you
+ * used in getTopGenres, just building an object instead and now
+ * collecting full cards, not only a count).
+ *
+ * Steps:
+ * 1. Initialize byRarity with all 3 tiers mapped to empty arrays.
+ * 2. Initialize byGenreCase as an empty object.
+ * 3. Walk `cards` once: for each card, push it into the right
+ *    byRarity bucket, and into byGenreCase[card.caseGenre] -- creating
+ *    that entry (count: 0, cards: []) the first time a given
+ *    caseGenre is seen, then incrementing count and pushing the card.
+ * 4. Return { totalCards: cards.length, byRarity, byGenreCase }.
+ */
+export function groupCardsForSummary(cards: CardRow[]): PoolSummary {
+  throw new Error('not implemented');
+}
