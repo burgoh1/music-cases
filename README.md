@@ -131,3 +131,19 @@ This section outlines the development process for creating music cases.
 - keeping SpotifyTrackItem and RankedTrack separate helps prevent issues where spotify changes their res shape. RankedTrack provides us with a stable source of truth that keeps merging, genre tagging and rarity implementation functions from breaking.
 
 - Spotify wraps the actual track list in an items field.
+
+## Genre tagging
+
+- each track needs to be assigned a genre
+
+- spotify's track objects have no genres field so we have to find each tracks primary artist, make a api call for the primary artist, look up their genre then copy them onto the track.
+
+- spotify's 'Get Several Artists' endpoint lets us batch up to 50 artist id's into a single call. Wow! Very useful in our case.
+
+# August 22, 2026
+
+## Top ranking genres
+
+- went ahead and implemented a function that takes each track's genre and tallies them by occurence and returns the top three genres of the user.
+
+- a track can have multiple genres. Each one of those genres gets one tally.

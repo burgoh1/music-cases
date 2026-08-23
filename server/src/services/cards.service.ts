@@ -34,10 +34,11 @@ async function fetchTopTracksForRange(
     throw new Error(`failed to fetch top tracks for ${timeRange}`);
   }
 
-  // cast a type for track, (Spotify wraps the actual track list in an items field)
+  // cast a type for track
   const data = (await res.json()) as { items: SpotifyTrackItem[] };
 
   const ranked: RankedTrack[] = [];
+  // Spotify wraps the actual track list in an items field
   data.items.forEach((item, index) => {
     // each track can have multiple artists, we only want the primary artist
     const primaryArtist = item.artists[0];
@@ -94,4 +95,87 @@ export async function mergeTopTracks(
   }
 
   return [...deduped.values()];
+}
+
+// object shape for each artist from spotify api
+interface SpotifyArtistItem {
+  id: string;
+  genres: string[];
+}
+
+// object shape for each track plus genres field
+export interface GenreTaggedTrack extends RankedTrack {
+  genres: string[];
+}
+
+async function fetchArtistsByIds(
+  accessToken: string,
+  artistIds: string[]
+): Promise<SpotifyArtistItem[]> {
+  // Calls Spotify's "Get Several Artists" endpoint for ONE batch of artist
+  const res = await fetch(
+    `https://api.spotify.com/v1/artists?ids=${artistIds.join(',')}`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error('failed to fetch artists');
+  }
+
+  // cast a type for artist
+  const data = (await res.json()) as { artists: SpotifyArtistItem[] };
+  return data.artists;
+}
+
+export async function tagTracksWithGenres(
+  accessToken: string,
+  tracks: RankedTrack[]
+): Promise<GenreTaggedTrack[]> {
+  // array of unique artist ids
+  const uniqueArtistIds = [...new Set(tracks.map((track) => track.artistId))];
+
+  // each item in the chunks array is an array of 50 or less artistIds
+  const chunks: string[][] = [];
+  // chunk into groups of 50 for spotify's hard limit of 50 ids per call
+  for (let i = 0; i < uniqueArtistIds.length; i += 50) {
+    chunks.push(uniqueArtistIds.slice(i, i + 50));
+  }
+
+  // fetch each chunk
+  const artistInfo = (
+    await Promise.all(
+      chunks.map((chunk) => fetchArtistsByIds(accessToken, chunk))
+    )
+  ).flat(); // return as a single array
+
+  // each artist is assigned a genre value
+  const genreMap = new Map<string, string[]>();
+  for (const artist of artistInfo) {
+    genreMap.set(artist.id, artist.genres);
+  }
+
+  // return array of tracks with genre field added
+  return tracks.map((track) => ({
+    ...track,
+    genres: genreMap.get(track.artistId) ?? [],
+  }));
+}
+
+// compute the user's top 3 genres by frequency across the
+export function getTopGenres(tracks: GenreTaggedTrack[]): string[] {
+  const genreCounts = new Map<string, number>();
+
+  for (const track of tracks) {
+    // every genre in a track's array counts as one occurrence
+    for (const genre of track.genres) {
+      genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1);
+    }
+  }
+
+  return [...genreCounts.entries()]
+    .sort(([, countA], [, countB]) => countB - countA)
+    .slice(0, 3)
+    .map(([genre]) => genre);
 }
