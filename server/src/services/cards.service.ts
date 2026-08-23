@@ -35,6 +35,11 @@ async function fetchTopTracksForRange(
   );
 
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new SpotifyAuthError(
+        `spotify auth failed fetching top tracks for ${timeRange}`
+      );
+    }
     throw new Error(`failed to fetch top tracks for ${timeRange}`);
   }
 
@@ -114,6 +119,9 @@ async function fetchArtistsByIds(
   );
 
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new SpotifyAuthError('spotify auth failed fetching artists');
+    }
     throw new Error('failed to fetch artists');
   }
 
