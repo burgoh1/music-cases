@@ -1,0 +1,18 @@
+// broad, parent-level genres only. avoid narrow subgenres so tracks from
+// different artists still land on the same genre string and tally together
+export const GENRE_ALLOWLIST = new Set([
+  'pop', 'pop rock', 'rock', 'classic rock', 'soft rock', 'southern rock',
+  'progressive rock', 'psychedelic', 'garage rock',
+  'hip hop', 'hip-hop', 'rap', 'trap', 'drill', 'grime',
+  'r&b', 'soul', 'funk', 'disco',
+  'country', 'americana', 'bluegrass', 'folk', 'singer-songwriter',
+  'electronic', 'dance', 'edm', 'house', 'techno', 'trance', 'dubstep',
+  'drum and bass', 'synthpop', 'new wave', 'ambient', 'downtempo',
+  'indie', 'indie rock', 'indie pop', 'alternative', 'alternative rock',
+  'punk', 'punk rock', 'pop punk', 'post-punk', 'hardcore',
+  'metal', 'heavy metal', 'death metal', 'metalcore', 'grunge', 'emo',
+  'jazz', 'blues', 'classical', 'opera', 'orchestral', 'instrumental',
+  'latin', 'reggaeton', 'salsa', 'samba', 'bollywood', 'afrobeats',
+  'reggae', 'ska', 'gospel', 'christian', 'worship',
+  'k-pop', 'j-pop', 'world', 'lo-fi', 'soundtrack', 'swing', 'rockabilly',
+]);

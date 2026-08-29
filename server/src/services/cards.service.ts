@@ -1,5 +1,6 @@
 import { pool } from '../db.js';
 import { LASTFM_API_KEY } from '../config.js';
+import { GENRE_ALLOWLIST } from '../data/genreAllowlist.js';
 import type { RarityTier } from './rarity.service.js';
 
 // Thrown when Spotify rejects a request with 401 (user needs to reconnect Spotify)
@@ -114,18 +115,6 @@ export interface GenreTaggedTrack extends RankedTrack {
   genres: string[];
 }
 
-// last.fm's raw tags are crowd-sourced, only these count as real genres
-const GENRE_ALLOWLIST = new Set([
-  'pop', 'rock', 'hip hop', 'hip-hop', 'rap', 'r&b', 'soul', 'country',
-  'electronic', 'dance', 'house', 'techno', 'trance', 'dubstep', 'edm',
-  'indie', 'indie rock', 'indie pop', 'alternative', 'alternative rock',
-  'punk', 'pop punk', 'punk rock', 'metal', 'heavy metal', 'death metal',
-  'metalcore', 'folk', 'jazz', 'blues', 'classical', 'latin', 'reggae',
-  'reggaeton', 'funk', 'disco', 'gospel', 'ambient', 'synthpop', 'new wave',
-  'grunge', 'emo', 'trap', 'drill', 'lo-fi', 'americana', 'bluegrass',
-  'singer-songwriter', 'k-pop', 'world', 'ska',
-]);
-
 // object shape for one last.fm top tag
 interface LastFmTag {
   name: string;
@@ -156,7 +145,10 @@ async function runWithLimit<T, R>(
 }
 
 // looks up an artist's top tags on last.fm, keeps only real genres
-async function fetchArtistGenreTags(artistName: string): Promise<string[]> {
+// returns null if the request itself failed, not the same as "no genres"
+async function fetchArtistGenreTags(
+  artistName: string
+): Promise<string[] | null> {
   const params = new URLSearchParams({
     method: 'artist.gettoptags',
     artist: artistName,
@@ -169,7 +161,7 @@ async function fetchArtistGenreTags(artistName: string): Promise<string[]> {
   if (!res.ok) {
     // one artist failing shouldn't fail the whole pool, just log and move on
     console.error('Last.fm tag lookup failed:', artistName, res.status);
-    return [];
+    return null;
   }
 
   // cast a type for the tag list
@@ -180,6 +172,35 @@ async function fetchArtistGenreTags(artistName: string): Promise<string[]> {
   return rawTags
     .map((tag) => tag.name.toLowerCase())
     .filter((tag) => GENRE_ALLOWLIST.has(tag));
+}
+
+// checks the shared cache first, only hits last.fm on a miss
+async function getArtistGenres(artistName: string): Promise<string[]> {
+  const cacheKey = artistName.toLowerCase();
+
+  const cached = await pool.query<{ genres: string[] }>(
+    'SELECT genres FROM artist_genre_cache WHERE artist_name = $1',
+    [cacheKey]
+  );
+  const cachedRow = cached.rows[0];
+  if (cachedRow) {
+    return cachedRow.genres;
+  }
+
+  const genres = await fetchArtistGenreTags(artistName);
+  if (genres === null) {
+    // last.fm request failed, dont cache a failure as if it were "no genres"
+    return [];
+  }
+
+  // cache it so every other user skips last.fm for this artist from now on
+  await pool.query(
+    `INSERT INTO artist_genre_cache (artist_name, genres) VALUES ($1, $2)
+     ON CONFLICT (artist_name) DO NOTHING`,
+    [cacheKey, genres]
+  );
+
+  return genres;
 }
 
 export async function tagTracksWithGenres(
@@ -194,7 +215,7 @@ export async function tagTracksWithGenres(
   const genreResults = await runWithLimit(
     uniqueArtistNames,
     5,
-    async (artistName) => [artistName, await fetchArtistGenreTags(artistName)] as const
+    async (artistName) => [artistName, await getArtistGenres(artistName)] as const
   );
 
   // each artist is assigned a genre value

@@ -194,4 +194,32 @@ This section outlines the development process for creating music cases.
 
 - went ahead and ran my project just to see what happens when I do a real fetch with genre tagging implemented and it didnt work. found out that spotify api deprecated their get several artists endpoint to not include a genre key. I had to take a break because I was so heated. Im trying to make a work around by calling another api to get genres of artists of songs. Wish me luck!
 
+# August 29, 2026
+
+## Switching genre tagging to last.fm
+
+- spotify deprecated the 'Get Several Artists' endpoint, confirmed with a live curl call, the response came back with no genres key at all anymore
+- swapped artist genre lookups over to last.fm's artist.gettoptags instead
+- last.fm looks up genres by artist name, not spotify artist id, and its only one artist per call, no batching like spotify used to give us
+- added a GENRE_ALLOWLIST so we only keep last.fm tags that are real genres. last.fm tags are crowd sourced so people tag stuff like "seen live" or "favorite" too, not just genres
+- capped last.fm calls at 5 running at once instead of firing all of them at the same time, dont want to hammer their api
+- if a single last.fm lookup fails we just give that artist zero genres instead of blowing up the whole pool generation
+- tagTracksWithGenres doesnt need the spotify accessToken anymore since last.fm doesnt care about that
+- everything else (mergeTopTracks, getTopGenres, buildGenreCases, applyGenreSubstitution, assignRarity, insertCards) stayed exactly the same since they just work off a genres[] array and dont care where it came from
+- decided to keep genres at the artist level instead of switching to last.fm's track level tags. tag coverage drops off fast per song, especially for less mainstream tracks, and thats exactly the kind of track that shows up in someones personal top tracks. more empty genres[] would just make cases harder to fill, not easier
+
+## Expanding the genre allowlist
+
+- moved GENRE_ALLOWLIST out of cards.service.ts into its own file, `server/src/data/genreAllowlist.ts`, since the list was getting long
+- expanded the list but biased toward broad/parent genres (rock, hip hop, electronic) instead of narrow subgenres (midwest emo, nu disco, brostep). the top-genre and greedy fill logic only works if lots of different artists land on the exact same genre string. too many micro-genres in the list means genres fragment and cases get harder to fill to 6-10
+- idea for later: split this into two tiers. keep a broad list for deciding which case a track goes into (so cases stay reliably full), but still store last.fm's more specific raw tags in the genres column for display on the card itself. gets the personalized feel without risking fill rate. not building this yet
+
+## Shared artist-genre cache
+
+- added `artist_genre_cache` table (artist_name, genres, cached_at) so popular artists only ever get looked up once across every user instead of once per user
+- tagTracksWithGenres checks this table before ever calling last.fm. cache hit = no external call at all
+- on a miss we call last.fm then insert the result into the cache for next time, even if the result is an empty array, since "this artist has no tags" is a stable fact worth remembering too
+- important: we only cache on a SUCCESSFUL last.fm response. if the request itself fails (network issue, last.fm down, etc) we do not cache that as "no genres" or every future lookup for that artist would be wrong until someone manually fixes it
+- no expiry on cache entries for now, an artist's genres basically never change day to day
+
 ##
