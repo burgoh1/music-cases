@@ -1,4 +1,5 @@
 import { pool } from '../db.js';
+import { LASTFM_API_KEY } from '../config.js';
 import type { RarityTier } from './rarity.service.js';
 
 // Thrown when Spotify rejects a request with 401 (user needs to reconnect Spotify)
@@ -108,77 +109,101 @@ export async function mergeTopTracks(
   return [...deduped.values()];
 }
 
-// object shape for each artist from spotify api
-interface SpotifyArtistItem {
-  id: string;
-  genres: string[];
-}
-
 // object shape for each track plus genres field
 export interface GenreTaggedTrack extends RankedTrack {
   genres: string[];
 }
 
-async function fetchArtistsByIds(
-  accessToken: string,
-  artistIds: string[]
-): Promise<SpotifyArtistItem[]> {
-  // Calls Spotify's "Get Several Artists" endpoint for ONE batch of artist
-  const res = await fetch(
-    `https://api.spotify.com/v1/artists?ids=${artistIds.join(',')}`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }
-  );
+// last.fm's raw tags are crowd-sourced, only these count as real genres
+const GENRE_ALLOWLIST = new Set([
+  'pop', 'rock', 'hip hop', 'hip-hop', 'rap', 'r&b', 'soul', 'country',
+  'electronic', 'dance', 'house', 'techno', 'trance', 'dubstep', 'edm',
+  'indie', 'indie rock', 'indie pop', 'alternative', 'alternative rock',
+  'punk', 'pop punk', 'punk rock', 'metal', 'heavy metal', 'death metal',
+  'metalcore', 'folk', 'jazz', 'blues', 'classical', 'latin', 'reggae',
+  'reggaeton', 'funk', 'disco', 'gospel', 'ambient', 'synthpop', 'new wave',
+  'grunge', 'emo', 'trap', 'drill', 'lo-fi', 'americana', 'bluegrass',
+  'singer-songwriter', 'k-pop', 'world', 'ska',
+]);
 
-  if (!res.ok) {
-    console.error(
-      'Spotify artists fetch failed:',
-      res.status,
-      await res.text()
-    );
-    if (res.status === 401) {
-      throw new SpotifyAuthError('spotify auth failed fetching artists');
-    }
-    throw new Error('failed to fetch artists');
+// object shape for one last.fm top tag
+interface LastFmTag {
+  name: string;
+}
+
+// runs up to `limit` promises at once instead of all-at-once or one-at-a-time
+async function runWithLimit<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  // pulls the next item off the shared queue until nothing is left
+  async function runNext(): Promise<void> {
+    const i = nextIndex++;
+    const item = items[i];
+    if (item === undefined) return;
+    results[i] = await worker(item);
+    return runNext();
   }
 
-  // cast a type for artist
-  const data = (await res.json()) as { artists: SpotifyArtistItem[] };
-  return data.artists;
+  // starts `limit` workers all pulling from the same queue
+  const workers = Array.from({ length: Math.min(limit, items.length) }, runNext);
+  await Promise.all(workers);
+  return results;
+}
+
+// looks up an artist's top tags on last.fm, keeps only real genres
+async function fetchArtistGenreTags(artistName: string): Promise<string[]> {
+  const params = new URLSearchParams({
+    method: 'artist.gettoptags',
+    artist: artistName,
+    api_key: LASTFM_API_KEY,
+    format: 'json',
+    autocorrect: '1',
+  });
+
+  const res = await fetch(`https://ws.audioscrobbler.com/2.0/?${params}`);
+  if (!res.ok) {
+    // one artist failing shouldn't fail the whole pool, just log and move on
+    console.error('Last.fm tag lookup failed:', artistName, res.status);
+    return [];
+  }
+
+  // cast a type for the tag list
+  const data = (await res.json()) as { toptags?: { tag: LastFmTag[] } };
+  const rawTags = data.toptags?.tag ?? [];
+
+  // filters raw tags down to only ones in our genre allowlist
+  return rawTags
+    .map((tag) => tag.name.toLowerCase())
+    .filter((tag) => GENRE_ALLOWLIST.has(tag));
 }
 
 export async function tagTracksWithGenres(
-  accessToken: string,
   tracks: RankedTrack[]
 ): Promise<GenreTaggedTrack[]> {
-  // array of unique artist ids
-  const uniqueArtistIds = [...new Set(tracks.map((track) => track.artistId))];
+  // unique artist names since last.fm looks up by name, not spotify id
+  const uniqueArtistNames = [
+    ...new Set(tracks.map((track) => track.artistName)),
+  ];
 
-  // each item in the chunks array is an array of 50 or less artistIds
-  const chunks: string[][] = [];
-  // chunk into groups of 50 for spotify's hard limit of 50 ids per call
-  for (let i = 0; i < uniqueArtistIds.length; i += 50) {
-    chunks.push(uniqueArtistIds.slice(i, i + 50));
-  }
-
-  // fetch each chunk
-  const artistInfo = (
-    await Promise.all(
-      chunks.map((chunk) => fetchArtistsByIds(accessToken, chunk))
-    )
-  ).flat(); // return as a single array
+  // caps concurrent last.fm requests instead of firing them all at once
+  const genreResults = await runWithLimit(
+    uniqueArtistNames,
+    5,
+    async (artistName) => [artistName, await fetchArtistGenreTags(artistName)] as const
+  );
 
   // each artist is assigned a genre value
-  const genreMap = new Map<string, string[]>();
-  for (const artist of artistInfo) {
-    genreMap.set(artist.id, artist.genres);
-  }
+  const genreMap = new Map<string, string[]>(genreResults);
 
   // return array of tracks with genre field added
   return tracks.map((track) => ({
     ...track,
-    genres: genreMap.get(track.artistId) ?? [],
+    genres: genreMap.get(track.artistName) ?? [],
   }));
 }
 

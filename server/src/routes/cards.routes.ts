@@ -28,7 +28,7 @@ cardsRouter.post('/generate-pool', requireAuth, async (req, res) => {
     const accessToken = await getValidSpotifyAccessToken(req.userId!);
 
     const merged = await mergeTopTracks(accessToken);
-    const tagged = await tagTracksWithGenres(accessToken, merged);
+    const tagged = await tagTracksWithGenres(merged);
     const topFourGenres = getTopGenres(tagged, 4);
     const topGenres = topFourGenres.slice(0, 3);
     const fourthGenre = topFourGenres[3];
