@@ -257,6 +257,9 @@ export function getTopGenres(
     .map(([genre]) => genre);
 }
 
+// max songs a single case can hold, matches the 6-10 song spec
+const CASE_SIZE_CAP = 10;
+
 // group tracks into genre case buckets
 export function buildGenreCases(
   tracks: GenreTaggedTrack[],
@@ -288,7 +291,8 @@ export function buildGenreCases(
     for (const genre of matchingGenres) {
       // gets each matching bucket
       const bucket = genreCases.get(genre);
-      if (bucket === undefined) {
+      // skip a bucket that doesn't exist or is already full
+      if (bucket === undefined || bucket.length >= CASE_SIZE_CAP) {
         continue;
       }
 
@@ -351,12 +355,16 @@ export function applyGenreSubstitution(
   // remove undersized genre bucket
   genreCases.delete(failingGenre);
 
-  // replacement case includes nonassigned tracks for 4th ranked genre
-  const substituteTracks = allTracks.filter(
-    (track) =>
-      !assignedTrackIds.has(track.spotifyTrackId) &&
-      track.genres.includes(fourthGenre)
-  );
+  // replacement case includes nonassigned tracks for 4th ranked genre,
+  // best rank first, capped at the same 10 song limit as any other case
+  const substituteTracks = allTracks
+    .filter(
+      (track) =>
+        !assignedTrackIds.has(track.spotifyTrackId) &&
+        track.genres.includes(fourthGenre)
+    )
+    .sort((trackA, trackB) => trackA.rank - trackB.rank)
+    .slice(0, CASE_SIZE_CAP);
   genreCases.set(fourthGenre, substituteTracks);
 
   return genreCases;
