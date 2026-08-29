@@ -128,7 +128,7 @@ authRouter.post('/login', async (req, res) => {
     // set refresh token in HTTP header
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
     });

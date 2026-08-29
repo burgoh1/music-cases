@@ -132,6 +132,11 @@ async function fetchArtistsByIds(
   );
 
   if (!res.ok) {
+    console.error(
+      'Spotify artists fetch failed:',
+      res.status,
+      await res.text()
+    );
     if (res.status === 401) {
       throw new SpotifyAuthError('spotify auth failed fetching artists');
     }

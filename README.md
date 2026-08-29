@@ -187,3 +187,11 @@ This section outlines the development process for creating music cases.
 - greedy fill is an algorithm that handles tracks matching two or more of the top three genres. first we process tracks in rank order, best tracks first. when tracks match two or more of the top three genres, we take a look at how many songs are in each of those genre buckets and place the track into whichever one currently holds the least amount of tracks. if two buckets are tied for the smallest, pick whichever of those genres is more frequent overall accross the users whole pool.
 
 - 4th genre substitution happens when a bucket cant clear more than five songs. We replace any of the top three genres with the 4th rank genre
+
+# August 28, 2026
+
+## FML
+
+- went ahead and ran my project just to see what happens when I do a real fetch with genre tagging implemented and it didnt work. found out that spotify api deprecated their get several artists endpoint to not include a genre key. I had to take a break because I was so heated. Im trying to make a work around by calling another api to get genres of artists of songs. Wish me luck!
+
+##

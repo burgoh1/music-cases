@@ -23,7 +23,7 @@ spotifyRouter.get('/connect', requireAuth, async (req, res) => {
   // set serverSpotifyNonce in httpOnly cookie to users browser
   res.cookie('serverSpotifyNonce', serverSpotifyNonce, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: SPOTIFY_NONCE_MAX_AGE_MS,
   });
