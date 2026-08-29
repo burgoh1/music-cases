@@ -198,6 +198,8 @@ This section outlines the development process for creating music cases.
 
 ## Switching genre tagging to last.fm
 
+- before picking last.fm, looked at last.fm vs musicbrainz as replacements. musicbrainz needs two calls per new artist (search by name for an mbid, then a separate lookup for genres) and enforces a strict ~1 request/second limit with ip bans if you go over. last.fm is one call per artist by name directly, no strict rate limit, just an api key. went with last.fm
+- also considered asking claude api to guess genres per artist instead of pulling from a real data source. decided against it for now, real crowd sourced tag data beats an llm guessing, especially for obscure artists it might not know well
 - spotify deprecated the 'Get Several Artists' endpoint, confirmed with a live curl call, the response came back with no genres key at all anymore
 - swapped artist genre lookups over to last.fm's artist.gettoptags instead
 - last.fm looks up genres by artist name, not spotify artist id, and its only one artist per call, no batching like spotify used to give us
@@ -221,5 +223,22 @@ This section outlines the development process for creating music cases.
 - on a miss we call last.fm then insert the result into the cache for next time, even if the result is an empty array, since "this artist has no tags" is a stable fact worth remembering too
 - important: we only cache on a SUCCESSFUL last.fm response. if the request itself fails (network issue, last.fm down, etc) we do not cache that as "no genres" or every future lookup for that artist would be wrong until someone manually fixes it
 - no expiry on cache entries for now, an artist's genres basically never change day to day
+
+## Testing all of it for real
+
+- branched off latest main into `claude/lastfm-genre-cases` to actually build and test this since main had drifted
+- needed a last.fm api key from last.fm/api/account/create. turns out you dont need the shared secret at all for this, thats only for last.fm's authenticated write flow (scrobbling etc), we're just doing a public read call. kept the secret in .env anyway just in case, doesnt get used anywhere in code
+- server kept crashing on boot with "Missing required environment variable: LASTFM_API_KEY" even after adding it to .env. turned out tsx watch only watches the src folder, not .env, so it never reloaded until I did a full manual restart of the dev server
+- accidentally pasted my real JWT secrets and spotify client secret into a chat while debugging. rotated all of them after (fresh random JWT secrets, regenerated the spotify client secret in the dashboard)
+- got "invalid nonce" on the spotify callback even on a clean single attempt. turned out I was on my LAN ip (192.168.1.23:5173) instead of 127.0.0.1:5173, since vite's host:true prints both a Local and a Network url and I grabbed the wrong one. cookies are host-only by default so a cookie set while on my LAN ip never gets sent to 127.0.0.1 later, even though its the same machine
+- had leftover cards in the table from before the last.fm rework, generate-pool kept saying "pool already generated for this user". truncated the cards table and tried again
+
+## First real end to end run
+
+- finally got a successful real run: totalCards came back as 109, way more than the 6-10 per case it was supposed to be
+- turned out buildGenreCases never had an upper limit on bucket size, only the 5 song floor for substitution. a popular genre like "electronic" just kept absorbing every matching track with no cap, ended up with 35+ songs in one case (electronic 35, hip-hop 36, pop 38)
+- added a CASE_SIZE_CAP of 10 to buildGenreCases and applyGenreSubstitution. once a bucket hits 10 it stops accepting more tracks, extra matches just dont make it into any case since tracks are already processed best rank first
+- truncated cards and reran it: 30 total cards, split exactly 10/10/10 across the three genre cases. byRarity came back 3 legendary / 9 epic / 18 rare, matches the math exactly (1 legendary + floor(10/3)=3 epic + 6 rare, times 3 cases)
+- pipeline is fully verified working end to end on real data
 
 ##
