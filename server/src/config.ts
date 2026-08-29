@@ -24,3 +24,7 @@ export const SPOTIFY_CLIENT_SECRET = requireEnv('SPOTIFY_CLIENT_SECRET');
 export const SPOTIFY_REDIRECT_URI = requireEnv('SPOTIFY_REDIRECT_URI');
 // 10min
 export const SPOTIFY_NONCE_MAX_AGE_MS = 10 * 60 * 1000;
+/*****************************************************************************/
+
+// Last.fm
+export const LASTFM_API_KEY = requireEnv('LASTFM_API_KEY');

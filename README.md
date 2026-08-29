@@ -194,4 +194,30 @@ This section outlines the development process for creating music cases.
 
 - went ahead and ran my project just to see what happens when I do a real fetch with genre tagging implemented and it didnt work. found out that spotify api deprecated their get several artists endpoint to not include a genre key. I had to take a break because I was so heated. Im trying to make a work around by calling another api to get genres of artists of songs. Wish me luck!
 
-##
+## last.fm
+
+- decided on using last.fm because it has less implementation resistance. its one call per artist. I didnt read any hard rate limits. should be easy to implement. I could have also used musicbrainz but it needed two calls per new artist plus a strict limit on calls. I also was thinking about using claude api to get genres off artists but decided not to because I didnt want to deal with the llm guessing genres it didnt know about.
+
+- swapped artist genre lookups over to last.fm's artist.gettoptags instead
+
+- added a GENRE_ALLOWLIST so we only keep last.fm tags that are real genres. last.fm tags are crowd sourced so people tag stuff like "seen live" or "favorite" too, not just genres
+
+- if a last.fm artist call fails, we give the artist no genre instead of crashing the whole pipeline
+
+- took out spotify access tokens for tagTracksWithGenres as last.fm does not need it
+
+- was debating on using individual song genres because last.fm has an endpoint for it but ultimately decided on getting genres at the artist level to ensure that we fill up our genre cases. Plus, more niche songs will likely get an empty genre tag so I wanted to avoid that.
+
+## shared artist-genre cache
+
+- added the artist_genre_cache table so popular artists only ever get looked up once across every user instead of once per user
+
+- tagTracksWithGenres checks this table before ever calling last.fm. a cache hit will not make an external call.
+
+- I didnt add an expiration on cache entries for now because artist genres raraly change
+
+## testing pool generation
+
+- finally got a successful run but got a total of 109 cards back. was expecting only 20-30 cards back bacause I hard limit each case to have a max of 10 cards.
+
+- buildGenreCases never had an upper limit so I added a cap size of 10. once a bucket hits 10 it stops accepting more tracks

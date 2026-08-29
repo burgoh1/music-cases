@@ -1,4 +1,6 @@
 import { pool } from '../db.js';
+import { LASTFM_API_KEY } from '../config.js';
+import { GENRE_ALLOWLIST } from '../data/genreAllowlist.js';
 import type { RarityTier } from './rarity.service.js';
 
 // Thrown when Spotify rejects a request with 401 (user needs to reconnect Spotify)
@@ -108,77 +110,125 @@ export async function mergeTopTracks(
   return [...deduped.values()];
 }
 
-// object shape for each artist from spotify api
-interface SpotifyArtistItem {
-  id: string;
-  genres: string[];
-}
-
 // object shape for each track plus genres field
 export interface GenreTaggedTrack extends RankedTrack {
   genres: string[];
 }
 
-async function fetchArtistsByIds(
-  accessToken: string,
-  artistIds: string[]
-): Promise<SpotifyArtistItem[]> {
-  // Calls Spotify's "Get Several Artists" endpoint for ONE batch of artist
-  const res = await fetch(
-    `https://api.spotify.com/v1/artists?ids=${artistIds.join(',')}`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }
-  );
+// object shape for one last.fm top tag
+interface LastFmTag {
+  name: string;
+}
 
-  if (!res.ok) {
-    console.error(
-      'Spotify artists fetch failed:',
-      res.status,
-      await res.text()
-    );
-    if (res.status === 401) {
-      throw new SpotifyAuthError('spotify auth failed fetching artists');
-    }
-    throw new Error('failed to fetch artists');
+// runs up to `limit` promises at once instead of all-at-once or one-at-a-time
+async function runWithLimit<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  // pulls the next item off the shared queue until nothing is left
+  async function runNext(): Promise<void> {
+    const i = nextIndex++;
+    const item = items[i];
+    if (item === undefined) return;
+    results[i] = await worker(item);
+    return runNext();
   }
 
-  // cast a type for artist
-  const data = (await res.json()) as { artists: SpotifyArtistItem[] };
-  return data.artists;
+  // starts `limit` workers all pulling from the same queue
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    runNext
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+// looks up an artist's top tags on last.fm, keeps only real genres
+// returns null if the request itself failed, not the same as "no genres"
+async function fetchArtistGenreTags(
+  artistName: string
+): Promise<string[] | null> {
+  const params = new URLSearchParams({
+    method: 'artist.gettoptags',
+    artist: artistName,
+    api_key: LASTFM_API_KEY,
+    format: 'json',
+    autocorrect: '1',
+  });
+
+  const res = await fetch(`https://ws.audioscrobbler.com/2.0/?${params}`);
+  if (!res.ok) {
+    // one artist failing shouldn't fail the whole pool, just log and move on
+    console.error('Last.fm tag lookup failed:', artistName, res.status);
+    return null;
+  }
+
+  // cast a type for the tag list
+  const data = (await res.json()) as { toptags?: { tag: LastFmTag[] } };
+  const rawTags = data.toptags?.tag ?? [];
+
+  // filters raw tags down to only ones in our genre allowlist
+  return rawTags
+    .map((tag) => tag.name.toLowerCase())
+    .filter((tag) => GENRE_ALLOWLIST.has(tag));
+}
+
+// checks the shared cache first, only hits last.fm on a miss
+async function getArtistGenres(artistName: string): Promise<string[]> {
+  const cacheKey = artistName.toLowerCase();
+
+  const cached = await pool.query<{ genres: string[] }>(
+    'SELECT genres FROM artist_genre_cache WHERE artist_name = $1',
+    [cacheKey]
+  );
+  const cachedRow = cached.rows[0];
+  if (cachedRow) {
+    return cachedRow.genres;
+  }
+
+  const genres = await fetchArtistGenreTags(artistName);
+  if (genres === null) {
+    // last.fm request failed, dont cache a failure as if it were "no genres"
+    return [];
+  }
+
+  // cache it so every other user skips last.fm for this artist from now on
+  await pool.query(
+    `INSERT INTO artist_genre_cache (artist_name, genres) VALUES ($1, $2)
+     ON CONFLICT (artist_name) DO NOTHING`,
+    [cacheKey, genres]
+  );
+
+  return genres;
 }
 
 export async function tagTracksWithGenres(
-  accessToken: string,
   tracks: RankedTrack[]
 ): Promise<GenreTaggedTrack[]> {
-  // array of unique artist ids
-  const uniqueArtistIds = [...new Set(tracks.map((track) => track.artistId))];
+  // unique artist names since last.fm looks up by name, not spotify id
+  const uniqueArtistNames = [
+    ...new Set(tracks.map((track) => track.artistName)),
+  ];
 
-  // each item in the chunks array is an array of 50 or less artistIds
-  const chunks: string[][] = [];
-  // chunk into groups of 50 for spotify's hard limit of 50 ids per call
-  for (let i = 0; i < uniqueArtistIds.length; i += 50) {
-    chunks.push(uniqueArtistIds.slice(i, i + 50));
-  }
-
-  // fetch each chunk
-  const artistInfo = (
-    await Promise.all(
-      chunks.map((chunk) => fetchArtistsByIds(accessToken, chunk))
-    )
-  ).flat(); // return as a single array
+  // caps concurrent last.fm requests instead of firing them all at once
+  const genreResults = await runWithLimit(
+    uniqueArtistNames,
+    5,
+    async (artistName) =>
+      [artistName, await getArtistGenres(artistName)] as const
+  );
 
   // each artist is assigned a genre value
-  const genreMap = new Map<string, string[]>();
-  for (const artist of artistInfo) {
-    genreMap.set(artist.id, artist.genres);
-  }
+  const genreMap = new Map<string, string[]>(genreResults);
 
   // return array of tracks with genre field added
   return tracks.map((track) => ({
     ...track,
-    genres: genreMap.get(track.artistId) ?? [],
+    genres: genreMap.get(track.artistName) ?? [],
   }));
 }
 
@@ -211,6 +261,9 @@ export function getTopGenres(
     .map(([genre]) => genre);
 }
 
+// max songs a single case can hold, matches the 6-10 song spec
+const CASE_SIZE_CAP = 10;
+
 // group tracks into genre case buckets
 export function buildGenreCases(
   tracks: GenreTaggedTrack[],
@@ -242,7 +295,8 @@ export function buildGenreCases(
     for (const genre of matchingGenres) {
       // gets each matching bucket
       const bucket = genreCases.get(genre);
-      if (bucket === undefined) {
+      // skip a bucket that doesn't exist or is already full
+      if (bucket === undefined || bucket.length >= CASE_SIZE_CAP) {
         continue;
       }
 
@@ -305,12 +359,16 @@ export function applyGenreSubstitution(
   // remove undersized genre bucket
   genreCases.delete(failingGenre);
 
-  // replacement case includes nonassigned tracks for 4th ranked genre
-  const substituteTracks = allTracks.filter(
-    (track) =>
-      !assignedTrackIds.has(track.spotifyTrackId) &&
-      track.genres.includes(fourthGenre)
-  );
+  // replacement case includes nonassigned tracks for 4th ranked genre,
+  // best rank first, capped at the same 10 song limit as any other case
+  const substituteTracks = allTracks
+    .filter(
+      (track) =>
+        !assignedTrackIds.has(track.spotifyTrackId) &&
+        track.genres.includes(fourthGenre)
+    )
+    .sort((trackA, trackB) => trackA.rank - trackB.rank)
+    .slice(0, CASE_SIZE_CAP);
   genreCases.set(fourthGenre, substituteTracks);
 
   return genreCases;
