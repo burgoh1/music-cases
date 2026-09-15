@@ -10,10 +10,8 @@ interface CardProps {
   card: CardData;
 }
 
-// legendary has no overlay asset yet -- null renders the card with no frame
-// instead of a wrong or broken one until the real asset lands
 const RARITY_FRAME_SRC: Record<CardData['rarity'], string | null> = {
-  Legendary: null,
+  Legendary: '/legendary-card-frame.png',
   Epic: '/epic-card-frame.png',
   Rare: '/rare-card-frame.png',
 };
