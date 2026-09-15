@@ -19,15 +19,6 @@
   --color-brand-400: #ff4d99;
   --color-brand-500: #ff2e88;
   --color-brand-600: #d1256f;
-
-  /* rarity tiers */
-  --color-rarity-legendary: #f4bd3d;
-  --color-rarity-epic: #a855f7;
-  --color-rarity-rare: #ec4899;
-  --color-rarity-uncommon: #4d9dff;
-
-  /* custom shadow token -> shadow-brand */
-  --shadow-brand: 0 14px 30px -12px rgba(168, 85, 247, 0.65);
 }
 
 @layer base {

@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { pool } from '../db.js';
-import { getValidSpotifyAccessToken } from '../services/spotify.service.js';
 
 // middleware
 import { requireAuth } from '../middleware/auth.middleware.js';
@@ -104,34 +103,4 @@ spotifyRouter.get('/callback', refreshCookie, async (req, res) => {
     [access_token, refresh_token, setExpireDate, req.userId]
   );
   res.status(200).json({ message: 'Spotify connected' });
-});
-
-spotifyRouter.get('/top-tracks', requireAuth, async (req, res) => {
-  try {
-    // wait for updated access token
-    const validSpotifyAccessToken = await getValidSpotifyAccessToken(
-      req.userId!
-    );
-
-    const data = await fetch('https://api.spotify.com/v1/me/top/tracks', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${validSpotifyAccessToken}`,
-      },
-    });
-    const spotifyRes = await data.json();
-
-    if (!data.ok) {
-      console.error('Spotify top-tracks request failed:', spotifyRes);
-      res.status(502).json({ error: 'failed to fetch top tracks' });
-      return;
-    }
-
-    // console log top tracks for now
-    console.log(spotifyRes);
-    res.status(200).json({ message: 'check server logs' });
-  } catch (error) {
-    console.error('Failed to get top tracks:', error);
-    res.status(400).json({ error: 'Spotify account not connected' });
-  }
 });

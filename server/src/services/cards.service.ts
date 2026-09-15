@@ -20,7 +20,6 @@ interface SpotifyTrackItem {
 export interface RankedTrack {
   spotifyTrackId: string;
   trackName: string;
-  artistId: string;
   artistName: string;
   rank: number;
   timeRange: TimeRange;
@@ -65,7 +64,6 @@ async function fetchTopTracksForRange(
     ranked.push({
       spotifyTrackId: item.id,
       trackName: item.name,
-      artistId: primaryArtist.id,
       artistName: primaryArtist.name,
       rank: index + 1,
       timeRange,
