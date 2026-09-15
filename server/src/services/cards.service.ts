@@ -20,6 +20,7 @@ interface SpotifyTrackItem {
 export interface RankedTrack {
   spotifyTrackId: string;
   trackName: string;
+  artistId: string;
   artistName: string;
   rank: number;
   timeRange: TimeRange;
@@ -64,6 +65,7 @@ async function fetchTopTracksForRange(
     ranked.push({
       spotifyTrackId: item.id,
       trackName: item.name,
+      artistId: primaryArtist.id,
       artistName: primaryArtist.name,
       rank: index + 1,
       timeRange,
@@ -378,6 +380,7 @@ export interface CardInsertRow {
   spotifyTrackId: string;
   trackName: string;
   artistName: string;
+  artistId: string;
   rank: number;
   timeRange: TimeRange;
   genres: string[];
@@ -392,12 +395,12 @@ export async function insertCards(rows: CardInsertRow[]): Promise<void> {
     return;
   }
 
-  const columnCount = 9;
+  const columnCount = 10;
   // sql placeholder for each card row
   const valueGroups = rows.map((_, rowIndex) => {
     // works out where this row’s numbered parameters begin
     const firstPlaceholder = rowIndex * columnCount + 1;
-    // creates the nine placeholders for a row ($1-$9)
+    // creates the ten placeholders for a row ($1-$10)
     const placeholders = Array.from(
       { length: columnCount },
       (_, columnIndex) => `$${firstPlaceholder + columnIndex}`
@@ -413,6 +416,7 @@ export async function insertCards(rows: CardInsertRow[]): Promise<void> {
     row.spotifyTrackId,
     row.trackName,
     row.artistName,
+    row.artistId,
     row.rank,
     row.timeRange,
     row.genres,
@@ -423,7 +427,7 @@ export async function insertCards(rows: CardInsertRow[]): Promise<void> {
   // complete sql statement that safely handles values
   const sql = `
     INSERT INTO cards (
-      user_id, spotify_track_id, track_name, artist_name, rank,
+      user_id, spotify_track_id, track_name, artist_name, artist_id, rank,
       time_range, genres, rarity, case_genre
     ) VALUES ${valueGroups.join(', ')}
   `;
@@ -436,6 +440,8 @@ export interface CardRow {
   spotifyTrackId: string;
   trackName: string;
   artistName: string;
+  artistId: string;
+  artistImageUrl: string | null;
   rank: number;
   timeRange: TimeRange;
   genres: string[];
@@ -447,18 +453,21 @@ export interface CardRow {
 export async function getCardsForUser(userId: number): Promise<CardRow[]> {
   const result = await pool.query<CardRow>(
     `SELECT
-       id,
-       spotify_track_id AS "spotifyTrackId",
-       track_name AS "trackName",
-       artist_name AS "artistName",
-       rank,
-       time_range AS "timeRange",
-       genres,
-       rarity,
-       case_genre AS "caseGenre"
-     FROM cards
-     WHERE user_id = $1
-     ORDER BY case_genre, rank`,
+       c.id,
+       c.spotify_track_id AS "spotifyTrackId",
+       c.track_name AS "trackName",
+       c.artist_name AS "artistName",
+       c.artist_id AS "artistId",
+       aic.image_url AS "artistImageUrl",
+       c.rank,
+       c.time_range AS "timeRange",
+       c.genres,
+       c.rarity,
+       c.case_genre AS "caseGenre"
+     FROM cards c
+     LEFT JOIN artist_image_cache aic ON aic.artist_id = c.artist_id
+     WHERE c.user_id = $1
+     ORDER BY c.case_genre, c.rank`,
     [userId]
   );
   return result.rows;

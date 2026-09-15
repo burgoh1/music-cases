@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { getValidSpotifyAccessToken } from '../services/spotify.service.js';
 import { assignRarity } from '../services/rarity.service.js';
+import { ensureArtistImagesCached } from '../services/artistImage.service.js';
 import {
   mergeTopTracks,
   tagTracksWithGenres,
@@ -47,6 +48,7 @@ cardsRouter.post('/generate-pool', requireAuth, async (req, res) => {
           spotifyTrackId: track.spotifyTrackId,
           trackName: track.trackName,
           artistName: track.artistName,
+          artistId: track.artistId,
           rank: track.rank,
           timeRange: track.timeRange,
           genres: track.genres,
@@ -55,6 +57,12 @@ cardsRouter.post('/generate-pool', requireAuth, async (req, res) => {
         });
       }
     }
+
+    // warm the shared artist image cache for every artist in the final pool
+    await ensureArtistImagesCached(
+      accessToken,
+      rows.map((row) => row.artistId)
+    );
 
     await insertCards(rows);
     res.status(201).json({ message: 'pool generated', cardCount: rows.length });
