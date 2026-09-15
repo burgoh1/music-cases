@@ -192,7 +192,7 @@ This section outlines the development process for creating music cases.
 
 ## FML
 
-- went ahead and ran my project just to see what happens when I do a real fetch with genre tagging implemented and it didnt work. found out that spotify api deprecated their get several artists endpoint to not include a genre key. I had to take a break because I was so heated. Im trying to make a work around by calling another api to get genres of artists of songs. Wish me luck!
+- went ahead and ran my project just to see what happens when I do a real fetch with genre tagging implemented and it didnt work. found out that spotify api deprecated their 'get several artists' endpoint to not include a genre key. I had to take a break because I was so heated. Im trying to make a work around by calling another api to get genres of artists of songs. Wish me luck!
 
 ## last.fm
 
@@ -221,3 +221,5 @@ This section outlines the development process for creating music cases.
 - finally got a successful run but got a total of 109 cards back. was expecting only 20-30 cards back bacause I hard limit each case to have a max of 10 cards.
 
 - buildGenreCases never had an upper limit so I added a cap size of 10. once a bucket hits 10 it stops accepting more tracks
+
+test line
